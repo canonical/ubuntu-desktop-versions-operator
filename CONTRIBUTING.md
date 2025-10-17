@@ -7,7 +7,6 @@ You can create an environment for development with `uv`:
 
 ```shell
 uv sync
-source .venv/bin/activate
 ```
 
 ## Testing
