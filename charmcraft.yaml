@@ -15,6 +15,10 @@ parts:
     plugin: charm
     source: .
 
+charm-libs:
+  - lib: operator_libs_linux.apt
+    version: "0"
+
 config:
   options:
     log-level:
