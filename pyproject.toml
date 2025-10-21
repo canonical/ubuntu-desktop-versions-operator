@@ -8,7 +8,7 @@ dependencies = ["ops~=3.0"]
 
 [dependency-groups]
 # Dependencies required to run all the charm's tests.
-test = ["ops[testing]", "jubilant~=1.0", "pytest", "coverage[toml]"]
+test = ["ops[testing]", "jubilant~=1.0", "pytest", "coverage[toml]", "pytest-operator"]
 # Development tools for linting, formatting, and type checking.
 dev = ["tox", "ruff", "codespell", "pyright"]
 
@@ -22,6 +22,7 @@ show_missing = true
 [tool.pytest.ini_options]
 minversion = "6.0"
 log_cli_level = "INFO"
+pythonpath = ["src", "."]
 
 # Linting tools configuration
 [tool.ruff]
@@ -52,4 +53,5 @@ max-complexity = 10
 skip = "build,lib,venv,icon.svg,.tox,.git,.mypy_cache,.ruff_cache,.coverage"
 
 [tool.pyright]
-include = ["src/**.py"]
+include = ["src/**.py", "lib/**.py"]
+extraPaths = ["./lib"]
