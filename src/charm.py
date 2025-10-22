@@ -27,6 +27,7 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
+        self.framework.observe(self.on.stop, self._on_stop)
         self.framework.observe(
             self.on.generate_versions_report_action, self._on_generate_versions_report
         )
@@ -48,6 +49,9 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
                 "Failed to set up the environment. Check `juju debug-log` for details."
             )
             return
+
+        self.unit.status = ops.MaintenanceStatus("Setting up crontab")
+        self._versions.setup_crontab()
 
         self.unit.status = ops.ActiveStatus()
 
@@ -123,6 +127,16 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
         template_content = APACHE_VHOST_TEMPLATE.read_text()
         template = Template(template_content)
         return template.substitute(domain=domain, port=port)
+
+    def _on_stop(self, event: ops.StopEvent):
+        """Handle stop event."""
+        self.unit.status = ops.MaintenanceStatus("Removing crontab")
+
+        try:
+            self._versions.disable_crontab()
+        except CalledProcessError as e:
+            logger.exception("Failed to disable the crontab: %s", e)
+            return
 
 
 if __name__ == "__main__":  # pragma: nocover
