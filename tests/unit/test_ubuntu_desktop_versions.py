@@ -64,8 +64,7 @@ class TestInstall:
             mock_apt.add_package.assert_any_call(package)
 
         # Verify git clone
-        mock_run.assert_called_once()
-        call_args = mock_run.call_args
+        call_args = mock_run.call_args_list[0]
         assert call_args[0][0] == ["git", "clone", "-b", "master", REPO_URL, REPO_LOCATION]
         assert call_args[1]["env"] == versions.env
 

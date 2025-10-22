@@ -93,6 +93,28 @@ class Versions:
             logger.debug("Git clone of the code failed: %s", e.stdout)
             raise
 
+        # FIXME: Patch versions.py to use anonymous login instead of
+        # authenticated login. Will revert when I have access to the LP
+        # bot. We will be subject to increased rate-limiting until then.
+        versions_file = REPO_LOCATION / "versions.py"
+        try:
+            run(
+                [
+                    "sed",
+                    "-i",
+                    "s/Launchpad.login_with(/Launchpad.login_anonymously(/",
+                    str(versions_file),
+                ],
+                check=True,
+                stdout=PIPE,
+                stderr=STDOUT,
+                text=True,
+            )
+            logger.debug("Patched versions.py for anonymous login")
+        except CalledProcessError as e:
+            logger.error("Failed to patch versions.py: %s", e)
+            raise
+
         # Create output directory for HTML files
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         logger.debug("Output directory created: %s", OUTPUT_DIR)
