@@ -153,3 +153,33 @@ class Versions:
         except CalledProcessError as e:
             logger.debug("Git pull of the ubuntu-desktop-versions repository failed: %s", e.stdout)
             raise
+
+    def setup_crontab(self):
+        """Configure the crontab for the service."""
+        try:
+            run(
+                ["crontab", "src/crontab"],
+                check=True,
+                stdout=PIPE,
+                stderr=STDOUT,
+                text=True,
+            )
+            logger.debug("Crontab configured.")
+        except CalledProcessError as e:
+            logger.error("Installation of the crontab failed: %s", e.stdout)
+            raise
+
+    def disable_crontab(self):
+        """Remove the crontab for the service."""
+        try:
+            run(
+                ["crontab", "-r"],
+                check=True,
+                stdout=PIPE,
+                stderr=STDOUT,
+                text=True,
+            )
+            logger.debug("Crontab removed.")
+        except CalledProcessError as e:
+            # crontab -r returns error if no crontab exists, that's okay
+            logger.debug("Removal of crontab failed (may not exist): %s", e.stdout)

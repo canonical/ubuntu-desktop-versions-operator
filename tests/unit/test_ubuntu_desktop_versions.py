@@ -4,6 +4,7 @@
 """Unit tests for the ubuntu_desktop_versions module."""
 
 from pathlib import Path
+from subprocess import CalledProcessError
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -139,3 +140,41 @@ class TestUpdateCheckout:
 
         with pytest.raises(CalledProcessError):
             versions.update_checkout()
+
+
+class TestSetupCrontab:
+    """Tests for Versions.setup_crontab() and Versions.disable_crontab()."""
+
+    @patch("ubuntu_desktop_versions.run")
+    def test_setup_crontab_success(self, mock_run, versions):
+        """Test successful crontab setup."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="")
+
+        versions.setup_crontab()
+
+        # Verify crontab command was called
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args
+        assert call_args[0][0] == ["crontab", "src/crontab"]
+        assert call_args[1]["check"] is True
+
+    @patch("ubuntu_desktop_versions.run")
+    def test_setup_crontab_fails(self, mock_run, versions):
+        """Test that setup_crontab raises when crontab installation fails."""
+        mock_run.side_effect = CalledProcessError(1, "crontab", output="error")
+
+        with pytest.raises(CalledProcessError):
+            versions.setup_crontab()
+
+    @patch("ubuntu_desktop_versions.run")
+    def test_disable_crontab_success(self, mock_run, versions):
+        """Test successful crontab removal."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="")
+
+        versions.disable_crontab()
+
+        # Verify crontab -r was called
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args
+        assert call_args[0][0] == ["crontab", "-r"]
+        assert call_args[1]["check"] is True
