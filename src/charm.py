@@ -5,6 +5,8 @@
 """Charm the application."""
 
 import logging
+from pathlib import Path
+from string import Template
 from subprocess import CalledProcessError
 
 import ops
@@ -14,9 +16,11 @@ from ubuntu_desktop_versions import Versions
 
 logger = logging.getLogger(__name__)
 
+APACHE_VHOST_TEMPLATE = Path(__file__).parent / "templates" / "apache-vhost.conf"
+
 
 class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
-    """Charm the application."""
+    """Charmed Operator for Ubuntu Desktop Versions scripts."""
 
     def __init__(self, framework: ops.Framework):
         super().__init__(framework)
@@ -26,7 +30,12 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
         self.framework.observe(
             self.on.generate_versions_report_action, self._on_generate_versions_report
         )
-
+        self.framework.observe(
+            self.on.apache_website_relation_joined, self._on_apache_website_relation_joined
+        )
+        self.framework.observe(
+            self.on.apache_website_relation_changed, self._on_apache_website_relation_changed
+        )
         self._versions = Versions()
 
     def _on_install(self, event: ops.InstallEvent):
@@ -59,9 +68,12 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
 
     def _on_config_changed(self, event: ops.ConfigChangedEvent):
         """Handle configuration changes."""
-        # Placeholder for future configuration handling
-        # Will be used for domain, flavor, distro-series, etc.
         logger.debug("Configuration changed")
+
+        # Update apache-website relation if it exists
+        for relation in self.model.relations.get("apache-website", []):
+            self._configure_apache_website(relation)
+
         self.unit.status = ops.ActiveStatus()
 
     def _on_generate_versions_report(self, event: ops.ActionEvent):
@@ -78,6 +90,39 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
             event.log("Report generation failed")
             event.fail("Report generation failed. Check `juju debug-log` for details.")
             self.unit.status = ops.ActiveStatus()
+
+    def _on_apache_website_relation_joined(self, event: ops.RelationJoinedEvent):
+        """Handle apache-website relation joined."""
+        logger.info("Apache website relation joined")
+        self._configure_apache_website(event.relation)
+
+    def _on_apache_website_relation_changed(self, event: ops.RelationChangedEvent):
+        """Handle apache-website relation changed."""
+        logger.info("Apache website relation changed")
+        self._configure_apache_website(event.relation)
+
+    def _configure_apache_website(self, relation: ops.Relation):
+        """Configure the apache-website relation."""
+        domain = self.config.get("domain", "localhost")
+        port = self.config.get("port", 80)
+
+        # Build Apache VirtualHost configuration
+        vhost_config = self._build_vhost_config(domain, port)
+
+        # Set relation data
+        relation.data[self.unit]["domain"] = domain
+        relation.data[self.unit]["enabled"] = "true"
+        relation.data[self.unit]["site_config"] = vhost_config
+        relation.data[self.unit]["site_modules"] = "headers deflate expires"
+        relation.data[self.unit]["ports"] = str(port)
+
+        logger.info("Configured apache-website relation for domain: %s on port %s", domain, port)
+
+    def _build_vhost_config(self, domain: str, port: int) -> str:
+        """Build Apache VirtualHost configuration from template."""
+        template_content = APACHE_VHOST_TEMPLATE.read_text()
+        template = Template(template_content)
+        return template.substitute(domain=domain, port=port)
 
 
 if __name__ == "__main__":  # pragma: nocover

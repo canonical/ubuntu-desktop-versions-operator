@@ -1,14 +1,20 @@
 type: charm
 name: ubuntu-desktop-versions-operator
 title: Ubuntu Desktop Versions
-summary: A simple service to check if Ubuntu packages are up to date. 
+subordinate: true
+summary: A simple service to check if Ubuntu packages are up to date.
 description: |
-  A simple service to check if Ubuntu packages are up to date. 
+  A simple service to check if Ubuntu packages are up to date.
 
 base: ubuntu@22.04
 platforms:
   amd64:
   arm64:
+
+requires:
+  apache-website:
+    interface: apache-website
+    scope: container
 
 parts:
   charm:
@@ -28,13 +34,14 @@ charm-libs:
 
 config:
   options:
-    log-level:
-      description: |
-        Configures the log level of gunicorn.
-
-        Acceptable values are: "info", "debug", "warning", "error" and "critical"
-      default: "info"
+    domain:
       type: string
+      default: "localhost"
+      description: Domain name for the versions website
+    port:
+      type: int
+      default: 80
+      description: Port for the versions website
 
 actions:
   generate-versions-report:
