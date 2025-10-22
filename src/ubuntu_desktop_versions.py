@@ -12,8 +12,8 @@ import shutil
 from pathlib import Path
 from subprocess import PIPE, STDOUT, CalledProcessError, run
 
-import lib.charms.operator_libs_linux.v0.apt as apt
-from lib.charms.operator_libs_linux.v0.apt import PackageError, PackageNotFoundError
+from charms.operator_libs_linux.v0 import apt
+from charms.operator_libs_linux.v0.apt import PackageError, PackageNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +35,8 @@ LOG_DIR = Path("/var/log/ubuntu-desktop-versions")
 class Versions:
     """Represent a Versions instance in the workload."""
 
-    def __init__(self, launchpad_client):
+    def __init__(self):
         logger.debug("Versions class init")
-        self.launchpad_client = launchpad_client
         self.env = os.environ.copy()
         self.proxies = {}
         juju_http_proxy = self.env.get("JUJU_CHARM_HTTP_PROXY")
@@ -205,3 +204,40 @@ class Versions:
         except CalledProcessError as e:
             # crontab -r returns error if no crontab exists, that's okay
             logger.debug("Removal of crontab failed (may not exist): %s", e.stdout)
+
+    def generate_reports(self):
+        """Generate package version comparison reports.
+
+        Returns:
+            bool: True if report generation succeeded, False otherwise
+        """
+        logger.info("Starting report generation")
+
+        report_env = self.env.copy()
+        report_env["FLAVOR"] = "ubuntu"
+        report_env["DISTRO_SERIES"] = "resolute"
+
+        command = (
+            f"cd {REPO_LOCATION} && "
+            f"/usr/bin/python3 versions.py && "
+            f"cp *.html *.yaml *.yml {OUTPUT_DIR}/"
+        )
+
+        try:
+            result = run(
+                ["bash", "-c", command],
+                check=True,
+                stdout=PIPE,
+                stderr=STDOUT,
+                text=True,
+                env=report_env,
+            )
+            logger.info("Report generation completed successfully")
+            logger.debug("Output: %s", result.stdout)
+
+            return True
+
+        except CalledProcessError as e:
+            logger.error("Report generation failed: %s", e.stdout)
+
+            return False

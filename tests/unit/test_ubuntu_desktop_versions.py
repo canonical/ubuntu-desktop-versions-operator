@@ -21,9 +21,8 @@ from ubuntu_desktop_versions import (
 
 @pytest.fixture
 def versions():
-    """Create a Versions instance with a mock launchpad client."""
-    lp = MagicMock()
-    return Versions(lp)
+    """Create a Versions instance."""
+    return Versions()
 
 
 class TestVersionsInit:
@@ -33,8 +32,7 @@ class TestVersionsInit:
         """Test that HTTP proxy is configured from environment."""
         monkeypatch.setenv("JUJU_CHARM_HTTP_PROXY", "http://proxy.example.com:8080")
         monkeypatch.setenv("JUJU_CHARM_HTTPS_PROXY", "https://proxy.example.com:8443")
-        lp = MagicMock()
-        versions = Versions(lp)
+        versions = Versions()
 
         assert versions.env["HTTP_PROXY"] == "http://proxy.example.com:8080"
         assert versions.proxies["http"] == "http://proxy.example.com:8080"

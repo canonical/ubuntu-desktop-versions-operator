@@ -12,8 +12,15 @@ platforms:
 
 parts:
   charm:
-    plugin: charm
+    plugin: uv
     source: .
+    build-packages:
+      - git
+    build-snaps:
+      - astral-uv
+    override-build: |
+      craftctl default
+      git describe --always > $CRAFT_PART_INSTALL/version
 
 charm-libs:
   - lib: operator_libs_linux.apt
@@ -28,3 +35,8 @@ config:
         Acceptable values are: "info", "debug", "warning", "error" and "critical"
       default: "info"
       type: string
+
+actions:
+  generate-versions-report:
+    description: |
+      Manually trigger generation of package version comparison reports.
