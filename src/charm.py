@@ -19,6 +19,21 @@ logger = logging.getLogger(__name__)
 APACHE_VHOST_TEMPLATE = Path(__file__).parent / "templates" / "apache-vhost.conf"
 
 
+def build_vhost_config(domain: str, port: int) -> str:
+    """Build Apache VirtualHost configuration from template.
+
+    Args:
+        domain: The domain name for the virtual host
+        port: The port number for the virtual host
+
+    Returns:
+        The rendered Apache VirtualHost configuration
+    """
+    template_content = APACHE_VHOST_TEMPLATE.read_text()
+    template = Template(template_content)
+    return template.substitute(domain=domain, port=port)
+
+
 class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
     """Charmed Operator for Ubuntu Desktop Versions scripts."""
 
@@ -107,11 +122,11 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
 
     def _configure_apache_website(self, relation: ops.Relation):
         """Configure the apache-website relation."""
-        domain = self.config.get("domain", "localhost")
-        port = self.config.get("port", 80)
+        domain = str(self.config.get("domain", "localhost"))
+        port = int(self.config.get("port", 80))
 
         # Build Apache VirtualHost configuration
-        vhost_config = self._build_vhost_config(domain, port)
+        vhost_config = build_vhost_config(domain, port)
 
         # Set relation data
         relation.data[self.unit]["domain"] = domain
@@ -121,12 +136,6 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
         relation.data[self.unit]["ports"] = str(port)
 
         logger.info("Configured apache-website relation for domain: %s on port %s", domain, port)
-
-    def _build_vhost_config(self, domain: str, port: int) -> str:
-        """Build Apache VirtualHost configuration from template."""
-        template_content = APACHE_VHOST_TEMPLATE.read_text()
-        template = Template(template_content)
-        return template.substitute(domain=domain, port=port)
 
     def _on_stop(self, event: ops.StopEvent):
         """Handle stop event."""
