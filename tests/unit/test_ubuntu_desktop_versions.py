@@ -149,10 +149,10 @@ class TestSetupCrontab:
 
         versions.setup_crontab()
 
-        # Verify crontab command was called
         mock_run.assert_called_once()
         call_args = mock_run.call_args
-        assert call_args[0][0] == ["crontab", "-u", "www-data", "src/crontab"]
+        assert call_args[0][0][0:3] == ["crontab", "-u", "www-data"]
+        assert call_args[0][0][3].endswith("src/crontab")
         assert call_args[1]["check"] is True
 
     @patch("ubuntu_desktop_versions.run")

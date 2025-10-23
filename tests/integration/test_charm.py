@@ -38,10 +38,17 @@ def test_charm_is_active(juju: jubilant.Juju):
     assert status.apps[APP_NAME].is_active
     assert status.apps[APACHE2].is_active
 
-    # Check that subordinate unit exists
-    subordinate_units = list(status.apps[APP_NAME].units.values())
-    assert len(subordinate_units) > 0
-    assert subordinate_units[0].is_active
+    # Check that subordinate unit exists under the principal unit
+    apache_units = list(status.apps[APACHE2].units.values())
+    assert len(apache_units) > 0
+
+    # Subordinate units are accessed via the principal unit
+    subordinates = apache_units[0].subordinates
+    assert len(subordinates) > 0
+
+    # Check the subordinate unit is active
+    subordinate_unit = list(subordinates.values())[0]
+    assert subordinate_unit.is_active
 
 
 @retry(retry_num=5, retry_sleep_sec=2)
@@ -54,8 +61,8 @@ def test_crontab_is_configured(juju: jubilant.Juju):
     assert len(apache_units) > 0
     principal_unit = apache_units[0]
 
-    # Check crontab exists for ubuntu user
-    result = juju.exec(principal_unit, ["sudo", "crontab", "-l", "-u", "ubuntu"])
+    # Check crontab exists for www-data user (charm sets up crontab for www-data)
+    result = juju.exec("sudo", "crontab", "-l", "-u", "www-data", unit=principal_unit)
 
     # Verify crontab contains ubuntu-desktop-versions entry
     assert "ubuntu-desktop-versions" in result.stdout
@@ -64,7 +71,7 @@ def test_crontab_is_configured(juju: jubilant.Juju):
 def test_config_change(juju: jubilant.Juju):
     """Test that config changes are handled correctly."""
     # Change configuration
-    juju.config(APP_NAME, domain="example.com", port=8080)
+    juju.config(APP_NAME, {"domain": "example.com", "port": 8080})
 
     # Wait for charm to settle
     juju.wait(jubilant.all_active, timeout=300)
@@ -85,13 +92,12 @@ def test_apache_vhost_configured(juju: jubilant.Juju):
     principal_unit = list(status.apps[APACHE2].units.keys())[0]
 
     # Get the unit's IP address
-    unit_address = apache_units[0].address
+    unit_address = apache_units[0].public_address
 
-    # Curl the apache2 server and get response headers
-    result = juju.exec(principal_unit, ["curl", "-s", "-I", f"http://{unit_address}"])
+    # Curl the apache2 server on port 8080 (configured in test_config_change)
+    result = juju.exec("curl", "-s", "-I", f"http://{unit_address}:8080", unit=principal_unit)
 
     # Check for security headers that the subordinate charm's vhost configures
-    # These headers are defined in src/templates/apache-vhost.conf
     headers = result.stdout
     assert "X-Frame-Options: SAMEORIGIN" in headers, (
         "X-Frame-Options header not found - vhost may not be configured"

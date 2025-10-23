@@ -59,6 +59,13 @@ jobs:
       - name: Install charmcraft
         run: sudo snap install charmcraft --classic
 
+      - name: Install juju
+        run: sudo snap install juju --channel 3.6/stable
+
+      - name: Bootstrap Juju controller
+        run: |
+          juju bootstrap localhost localhost
+
       - name: Setup Python
         uses: actions/setup-python@v6
         with:

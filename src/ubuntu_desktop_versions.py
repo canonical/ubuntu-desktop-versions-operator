@@ -177,9 +177,10 @@ class Versions:
 
     def setup_crontab(self):
         """Configure the crontab for the service."""
+        crontab_file = Path(__file__).parent / "crontab"
         try:
             run(
-                ["crontab", "-u", "www-data", "src/crontab"],
+                ["crontab", "-u", "www-data", str(crontab_file)],
                 check=True,
                 stdout=PIPE,
                 stderr=STDOUT,
