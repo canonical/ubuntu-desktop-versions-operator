@@ -179,13 +179,13 @@ class Versions:
         """Configure the crontab for the service."""
         try:
             run(
-                ["crontab", "src/crontab"],
+                ["crontab", "-u", "www-data", "src/crontab"],
                 check=True,
                 stdout=PIPE,
                 stderr=STDOUT,
                 text=True,
             )
-            logger.debug("Crontab configured.")
+            logger.debug("Crontab configured for www-data user.")
         except CalledProcessError as e:
             logger.error("Installation of the crontab failed: %s", e.stdout)
             raise
@@ -194,13 +194,13 @@ class Versions:
         """Remove the crontab for the service."""
         try:
             run(
-                ["crontab", "-r"],
+                ["crontab", "-u", "www-data", "-r"],
                 check=True,
                 stdout=PIPE,
                 stderr=STDOUT,
                 text=True,
             )
-            logger.debug("Crontab removed.")
+            logger.debug("Crontab removed for www-data user.")
         except CalledProcessError as e:
             # crontab -r returns error if no crontab exists, that's okay
             logger.debug("Removal of crontab failed (may not exist): %s", e.stdout)

@@ -152,7 +152,7 @@ class TestSetupCrontab:
         # Verify crontab command was called
         mock_run.assert_called_once()
         call_args = mock_run.call_args
-        assert call_args[0][0] == ["crontab", "src/crontab"]
+        assert call_args[0][0] == ["crontab", "-u", "www-data", "src/crontab"]
         assert call_args[1]["check"] is True
 
     @patch("ubuntu_desktop_versions.run")
@@ -170,8 +170,8 @@ class TestSetupCrontab:
 
         versions.disable_crontab()
 
-        # Verify crontab -r was called
+        # Verify crontab -u www-data -r was called
         mock_run.assert_called_once()
         call_args = mock_run.call_args
-        assert call_args[0][0] == ["crontab", "-r"]
+        assert call_args[0][0] == ["crontab", "-u", "www-data", "-r"]
         assert call_args[1]["check"] is True
