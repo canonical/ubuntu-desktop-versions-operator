@@ -8,7 +8,7 @@ dependencies = ["ops~=3.0"]
 
 [dependency-groups]
 # Dependencies required to run all the charm's tests.
-test = ["ops[testing]", "jubilant~=1.0", "pytest", "coverage[toml]", "pytest-operator"]
+test = ["ops[testing]", "jubilant~=1.0", "pytest", "coverage[toml]"]
 # Development tools for linting, formatting, and type checking.
 dev = ["tox", "ruff", "codespell", "pyright"]
 
