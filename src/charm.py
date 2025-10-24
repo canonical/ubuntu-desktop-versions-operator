@@ -138,6 +138,7 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
             self._versions.disable_crontab()
         except CalledProcessError as e:
             logger.exception("Failed to disable the crontab: %s", e)
+            self.unit.status = ops.BlockedStatus("Failed to disable the crontab.")
             return
 
     def _on_ingress_ready(self, event):
