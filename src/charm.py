@@ -33,7 +33,7 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.stop, self._on_stop)
         self.framework.observe(
-            self.on.generate_versions_report_action, self._on_generate_versions_report
+            self.on.refresh_reports_action, self._on_refresh_reports
         )
 
         # Observe ingress events
@@ -115,8 +115,13 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
 
         self.unit.status = ops.ActiveStatus()
 
-    def _on_generate_versions_report(self, event: ops.ActionEvent):
-        """Generate package version comparison reports."""
+    def _on_refresh_reports(self, event: ops.ActionEvent):
+        """Manually refresh and regenerate package version comparison reports.
+
+        This handler is invoked only when the user explicitly runs the refresh-reports
+        action via `juju run`. It is not called during normal operation or by the cron job.
+        The cron job directly invokes the report generation scripts independently.
+        """
         self.unit.status = ops.MaintenanceStatus("Generating version reports")
 
         event.log("Generating version reports, this may take a while (15-60 minutes)")

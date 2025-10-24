@@ -46,6 +46,14 @@ config:
       description: Port for the versions website
 
 actions:
-  generate-versions-report:
+  refresh-reports:
     description: |
-      Manually trigger generation of package version comparison reports.
+      Manually refresh and regenerate the Ubuntu Desktop version comparison reports.
+
+      This action is intended for manual invocation only when you want to force an
+      immediate regeneration of reports outside of the scheduled cron job.
+
+      Note: Report generation can take 15-60 minutes to complete.
+
+      Usage:
+        juju run ubuntu-desktop-versions/0 refresh-reports
