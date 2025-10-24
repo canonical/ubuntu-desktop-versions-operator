@@ -4,7 +4,7 @@
 """Unit tests for Apache module."""
 
 from subprocess import CalledProcessError
-from unittest.mock import ANY, MagicMock, call, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import pytest
 
@@ -53,37 +53,12 @@ class TestInstall:
         apache.install()
 
         # Verify a2enmod was called for each module
-        expected_calls = [
-            call(
-                ["a2enmod", "headers"],
-                check=True,
-                stdout=ANY,
-                stderr=ANY,
-                text=True,
-                timeout=60,
-            ),
-            call(
-                ["a2enmod", "deflate"],
-                check=True,
-                stdout=ANY,
-                stderr=ANY,
-                text=True,
-                timeout=60,
-            ),
-            call(
-                ["a2enmod", "expires"],
-                check=True,
-                stdout=ANY,
-                stderr=ANY,
-                text=True,
-                timeout=60,
-            ),
-        ]
+        expected_modules = ["headers", "deflate", "expires"]
 
-        for expected_call in expected_calls:
+        for module in expected_modules:
             assert any(
-                actual_call[0][0] == expected_call[0][0] for actual_call in mock_run.call_args_list
-            ), f"Expected call {expected_call[0][0]} not found"
+                call_args[0][0] == ["a2enmod", module] for call_args in mock_run.call_args_list
+            ), f"Expected a2enmod call for module '{module}' not found"
 
     @patch("apache.Apache.reload")
     @patch("apache.UBUNTU_DESKTOP_VERSIONS_SITE")
@@ -92,7 +67,7 @@ class TestInstall:
     def test_install_disables_default_site(
         self, mock_run, mock_default_site, mock_udv_site, mock_reload
     ):
-        """Test that install disables the default Apache site and enables the ubuntu-desktop-versions site."""
+        """Test that install disables default site and enables ubuntu-desktop-versions site."""
         mock_run.return_value = MagicMock(stdout="", returncode=0)
         mock_default_site.unlink = MagicMock()
         mock_udv_site.unlink = MagicMock()

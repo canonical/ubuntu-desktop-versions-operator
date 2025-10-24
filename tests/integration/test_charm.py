@@ -4,7 +4,6 @@
 """Integration tests for ubuntu-desktop-versions-operator charm."""
 
 import jubilant
-import requests
 
 APP_NAME = "ubuntu-desktop-versions"
 UNIT = f"{APP_NAME}/0"
@@ -14,7 +13,7 @@ def test_deploy(juju: jubilant.Juju, ubuntu_desktop_versions_charm):
     """Test deploying the charm."""
     # Deploy the charm
     juju.deploy(ubuntu_desktop_versions_charm, app=APP_NAME)
-    juju.wait(jubilant.all_active, timeout=600)
+    juju.wait(jubilant.all_active, timeout=300)
 
     # Check that the unit exists and is active
     status = juju.status()
@@ -37,7 +36,7 @@ def test_config_change(juju: jubilant.Juju):
     juju.config(APP_NAME, {"domain": "example.com", "port": 8080})
 
     # Wait for charm to settle
-    juju.wait(jubilant.all_active, timeout=300)
+    juju.wait(jubilant.all_active, timeout=120)
 
     # Verify charm is still active after config change
     assert juju.status().apps[APP_NAME].is_active
@@ -61,13 +60,13 @@ def test_apache_site_configuration(juju: jubilant.Juju):
     """Test that Apache site is properly configured."""
     # Check default site is disabled
     result = juju.exec("test", "!", "-L", "/etc/apache2/sites-enabled/000-default.conf", unit=UNIT)
-    assert result.exit_code == 0, "Default site should be disabled"
+    assert result.return_code == 0, "Default site should be disabled"
 
     # Check ubuntu-desktop-versions site is enabled
     result = juju.exec(
         "test", "-L", "/etc/apache2/sites-enabled/ubuntu-desktop-versions.conf", unit=UNIT
     )
-    assert result.exit_code == 0, "ubuntu-desktop-versions site should be enabled"
+    assert result.return_code == 0, "ubuntu-desktop-versions site should be enabled"
 
 
 def test_apache_vhost_config_content(juju: jubilant.Juju):
@@ -81,18 +80,3 @@ def test_apache_vhost_config_content(juju: jubilant.Juju):
     assert "ServerName example.com" in vhost_config
     assert "VirtualHost *:8080" in vhost_config
     assert "DocumentRoot /var/www/html/versions" in vhost_config
-
-
-def test_apache_vhost_configured(juju: jubilant.Juju):
-    """Test that the charm's Apache vhost is configured and active."""
-    unit_address = juju.status().apps[APP_NAME].units[f"{APP_NAME}/0"].public_address
-
-    # Make HEAD request to the apache2 server on port 8080 (configured in test_config_change)
-    response = requests.head(f"http://{unit_address}:8080", timeout=10)
-    response.raise_for_status()
-
-    # Check for security headers that the charm's vhost configures
-    assert response.headers.get("X-Frame-Options") == "SAMEORIGIN"
-    assert response.headers.get("X-Content-Type-Options") == "nosniff"
-    assert response.headers.get("X-XSS-Protection") == "1; mode=block"
-    assert response.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"

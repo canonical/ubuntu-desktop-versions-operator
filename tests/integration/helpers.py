@@ -1,5 +1,6 @@
 # Copyright 2025 Canonical
 # See LICENSE file for licensing details.
+import ipaddress
 from urllib.parse import urlparse
 
 from requests.adapters import DEFAULT_POOLBLOCK, DEFAULT_POOLSIZE, DEFAULT_RETRIES, HTTPAdapter
@@ -49,9 +50,11 @@ class DNSResolverHTTPSAdapter(HTTPAdapter):
         if result.hostname == self.hostname:
             ip = self.ip
             if result.scheme == "https" and ip:
+                addr = ipaddress.ip_address(ip)
+                formatted_ip = f"[{ip}]" if isinstance(addr, ipaddress.IPv6Address) else ip
                 request.url = request.url.replace(
                     "https://" + result.hostname,
-                    "https://" + ip,
+                    "https://" + formatted_ip,
                 )
                 connection_pool_kwargs["server_hostname"] = result.hostname
                 connection_pool_kwargs["assert_hostname"] = result.hostname
