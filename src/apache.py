@@ -10,6 +10,10 @@ from subprocess import PIPE, STDOUT, CalledProcessError, run
 
 logger = logging.getLogger(__name__)
 
+SHORT_TIMEOUT = 60
+MEDIUM_TIMEOUT = 300
+LONG_TIMEOUT = 3600
+
 VHOST_TEMPLATE = Path(__file__).parent / "templates" / "apache-vhost.conf"
 VHOST_FILE = Path("/etc/apache2/sites-available/ubuntu-desktop-versions.conf")
 SITES_ENABLED_DIR = Path("/etc/apache2/sites-enabled")
@@ -49,6 +53,7 @@ class Apache:
                     stdout=PIPE,
                     stderr=STDOUT,
                     text=True,
+                    timeout=SHORT_TIMEOUT,
                 )
                 logger.debug("Apache module %s enabled", module)
             except CalledProcessError as e:
@@ -95,6 +100,7 @@ class Apache:
                 stdout=PIPE,
                 stderr=STDOUT,
                 text=True,
+                timeout=SHORT_TIMEOUT,
             )
             logger.debug("Apache reloaded")
         except CalledProcessError as e:

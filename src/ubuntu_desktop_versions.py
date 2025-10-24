@@ -17,6 +17,10 @@ from charms.operator_libs_linux.v0.apt import PackageError, PackageNotFoundError
 
 logger = logging.getLogger(__name__)
 
+SHORT_TIMEOUT = 60
+MEDIUM_TIMEOUT = 300
+LONG_TIMEOUT = 3600
+
 # Packages to be installed
 PACKAGES = [
     "python3-launchpadlib",
@@ -39,6 +43,7 @@ class Versions:
     def __init__(self):
         logger.debug("Versions class init")
         self.env = os.environ.copy()
+        self.env["GIT_TERMINAL_PROMPT"] = "0"
         self.proxies = {}
         juju_http_proxy = self.env.get("JUJU_CHARM_HTTP_PROXY")
         juju_https_proxy = self.env.get("JUJU_CHARM_HTTPS_PROXY")
@@ -87,6 +92,7 @@ class Versions:
                 stderr=STDOUT,
                 text=True,
                 env=self.env,
+                timeout=MEDIUM_TIMEOUT,
             )
             logger.debug("ubuntu-desktop-versions vcs cloned.")
         except CalledProcessError as e:
@@ -109,6 +115,7 @@ class Versions:
                 stdout=PIPE,
                 stderr=STDOUT,
                 text=True,
+                timeout=SHORT_TIMEOUT,
             )
             logger.debug("Patched versions.py for anonymous login")
         except CalledProcessError as e:
@@ -149,6 +156,7 @@ class Versions:
                 stderr=STDOUT,
                 text=True,
                 env=self.env,
+                timeout=MEDIUM_TIMEOUT,
             )
             logger.debug("ubuntu-desktop-versions checkout updated.")
 
@@ -167,6 +175,7 @@ class Versions:
                 stderr=STDOUT,
                 text=True,
                 env=self.env,
+                timeout=SHORT_TIMEOUT,
             )
             workload_version = result.stdout.strip()
             logger.debug("ubuntu-desktop-versions revision: %s", workload_version)
@@ -186,6 +195,7 @@ class Versions:
                 stdout=PIPE,
                 stderr=STDOUT,
                 text=True,
+                timeout=SHORT_TIMEOUT,
             )
             logger.debug("Crontab configured for www-data user.")
         except CalledProcessError as e:
@@ -201,6 +211,7 @@ class Versions:
                 stdout=PIPE,
                 stderr=STDOUT,
                 text=True,
+                timeout=SHORT_TIMEOUT,
             )
             logger.debug("Crontab removed for www-data user.")
         except CalledProcessError as e:
@@ -233,6 +244,7 @@ class Versions:
                 stderr=STDOUT,
                 text=True,
                 env=report_env,
+                timeout=LONG_TIMEOUT,
             )
             logger.info("Report generation completed successfully")
             logger.debug("Output: %s", result.stdout)
