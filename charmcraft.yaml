@@ -1,9 +1,9 @@
 type: charm
 name: ubuntu-desktop-versions-operator
 title: Ubuntu Desktop Versions
-summary: A simple service to check if Ubuntu packages are up to date. 
+summary: A simple service to check if Ubuntu packages are up to date.
 description: |
-  A simple service to check if Ubuntu packages are up to date. 
+  A simple service to check if Ubuntu packages are up to date.
 
 base: ubuntu@22.04
 platforms:
@@ -12,15 +12,57 @@ platforms:
 
 parts:
   charm:
-    plugin: charm
+    plugin: uv
     source: .
+    build-packages:
+      - git
+    build-snaps:
+      - astral-uv
+    override-build: |
+      craftctl default
+      git describe --always > $CRAFT_PART_INSTALL/version
+
+charm-libs:
+  - lib: operator_libs_linux.apt
+    version: "0"
+  - lib: traefik_k8s.ingress
+    version: "2"
+
+requires:
+  ingress:
+    interface: ingress
+    limit: 1
+    optional: true
 
 config:
   options:
-    log-level:
-      description: |
-        Configures the log level of gunicorn.
-
-        Acceptable values are: "info", "debug", "warning", "error" and "critical"
-      default: "info"
+    domain:
       type: string
+      default: "localhost"
+      description: Domain name for the versions website
+    port:
+      type: int
+      default: 80
+      description: Port for the versions website
+
+actions:
+  refresh-reports:
+    description: |
+      Manually refresh and regenerate the Ubuntu Desktop version comparison reports.
+
+      This action is intended for manual invocation only when you want to force an
+      immediate regeneration of reports outside of the scheduled cron job.
+
+      Note: Report generation can take 15-60 minutes to complete.
+
+      Usage:
+        juju run ubuntu-desktop-versions/0 refresh-reports
+  update-checkout:
+    description: |
+      Manually update the ubuntu-desktop-versions git repository checkout.
+
+      This action pulls the latest changes from the upstream repository and updates
+      the workload version to match the current git revision.
+
+      Usage:
+        juju run ubuntu-desktop-versions/0 update-checkout

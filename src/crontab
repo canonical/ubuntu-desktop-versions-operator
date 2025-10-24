@@ -1,0 +1,5 @@
+# Ubuntu Desktop Versions Report Generation
+# Runs every 6 hours to generate package version comparison reports
+
+# m h  dom mon dow   command
+0 */6 * * * cd /app/ubuntu-desktop-versions && FLAVOR=ubuntu DISTRO_SERIES=resolute /usr/bin/python3 versions.py && cp *.html *.yaml *.yml /var/www/html/versions/ 2>&1 | tee /var/log/ubuntu-desktop-versions/cron.log

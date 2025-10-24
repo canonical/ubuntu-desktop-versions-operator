@@ -44,3 +44,42 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./coverage.xml
           disable_search: true
+
+  integration-test:
+    name: "Run integration tests"
+    runs-on: ubuntu-24.04
+    needs: tests
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup LXD
+        uses: canonical/setup-lxd@a3c85fc6fb7fff43fcfeae87659e41a8f635b7dd
+
+      - name: Install charmcraft
+        run: sudo snap install charmcraft --classic
+
+      - name: Install juju
+        run: sudo snap install juju --channel 3.6/stable
+
+      - name: Bootstrap Juju controller
+        run: |
+          juju bootstrap localhost localhost
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: "pyproject.toml"
+
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: |
+          uv tool install --python-preference only-managed tox --with tox-uv
+
+      - name: Run integration tests
+        run: |
+          tox -e integration

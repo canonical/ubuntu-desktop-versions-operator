@@ -4,7 +4,7 @@ dynamic = ["version"]
 requires-python = ">=3.10"
 
 # Required group: these are all dependencies required to run the charm.
-dependencies = ["ops~=3.0"]
+dependencies = ["ops~=3.0", "pydantic"]
 
 [dependency-groups]
 # Dependencies required to run all the charm's tests.
@@ -22,6 +22,7 @@ show_missing = true
 [tool.pytest.ini_options]
 minversion = "6.0"
 log_cli_level = "INFO"
+pythonpath = ["src", "lib", "."]
 
 # Linting tools configuration
 [tool.ruff]
@@ -52,4 +53,5 @@ max-complexity = 10
 skip = "build,lib,venv,icon.svg,.tox,.git,.mypy_cache,.ruff_cache,.coverage"
 
 [tool.pyright]
-include = ["src/**.py"]
+include = ["src/**.py", "lib/**.py"]
+extraPaths = ["./lib"]
