@@ -1,7 +1,6 @@
 type: charm
 name: ubuntu-desktop-versions-operator
 title: Ubuntu Desktop Versions
-subordinate: true
 summary: A simple service to check if Ubuntu packages are up to date.
 description: |
   A simple service to check if Ubuntu packages are up to date.
@@ -10,11 +9,6 @@ base: ubuntu@22.04
 platforms:
   amd64:
   arm64:
-
-requires:
-  apache-website:
-    interface: apache-website
-    scope: container
 
 parts:
   charm:

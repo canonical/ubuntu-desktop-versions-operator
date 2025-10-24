@@ -24,6 +24,7 @@ PACKAGES = [
     "python3-requests",
     "python3-yaml",
     "git",
+    "apache2",
 ]
 
 REPO_LOCATION = Path("/app/ubuntu-desktop-versions")
