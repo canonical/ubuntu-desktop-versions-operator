@@ -30,8 +30,8 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
-        self.framework.observe(self.on.stop, self._on_stop)
         self.framework.observe(self.on.refresh_reports_action, self._on_refresh_reports)
+        self.framework.observe(self.on.update_checkout_action, self._on_update_checkout)
 
         # Observe ingress events
         self.framework.observe(self.ingress.on.ready, self._on_ingress_ready)
@@ -110,6 +110,9 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
             )
             return
 
+        # Reconfigure ingress with the new port
+        self.ingress.provide_ingress_requirements(port=port)
+
         self.unit.status = ops.ActiveStatus()
 
     def _on_refresh_reports(self, event: ops.ActionEvent):
@@ -126,22 +129,31 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
 
         if success:
             event.log("Report generation completed successfully")
-            self.unit.status = ops.ActiveStatus()
         else:
             event.log("Report generation failed")
             event.fail("Report generation failed. Check `juju debug-log` for details.")
-            self.unit.status = ops.ActiveStatus()
 
-    def _on_stop(self, event: ops.StopEvent):
-        """Handle stop event."""
-        self.unit.status = ops.MaintenanceStatus("Removing crontab")
+        self.unit.status = ops.ActiveStatus()
 
+    def _on_update_checkout(self, event: ops.ActionEvent):
+        """Manually update the ubuntu-desktop-versions git repository checkout.
+
+        This handler is invoked when the user explicitly runs the update-checkout
+        action via `juju run`. It pulls the latest changes from the upstream repository
+        and updates the workload version.
+        """
+        self.unit.status = ops.MaintenanceStatus("Updating ubuntu-desktop-versions checkout")
+
+        event.log("Updating ubuntu-desktop-versions git repository")
         try:
-            self._versions.disable_crontab()
-        except CalledProcessError as e:
-            logger.exception("Failed to disable the crontab: %s", e)
-            self.unit.status = ops.BlockedStatus("Failed to disable the crontab.")
-            return
+            version = self._versions.update_checkout()
+            self.unit.set_workload_version(version)
+            event.log(f"Update completed successfully. Current version: {version}")
+            event.set_results({"version": version})
+        except CalledProcessError:
+            event.log("Update failed")
+            event.fail("Failed to update checkout. Check `juju debug-log` for details.")
+        self.unit.status = ops.ActiveStatus()
 
     def _on_ingress_ready(self, event):
         """Handle ingress ready event."""

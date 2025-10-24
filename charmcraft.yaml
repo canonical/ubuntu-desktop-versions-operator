@@ -57,3 +57,12 @@ actions:
 
       Usage:
         juju run ubuntu-desktop-versions/0 refresh-reports
+  update-checkout:
+    description: |
+      Manually update the ubuntu-desktop-versions git repository checkout.
+
+      This action pulls the latest changes from the upstream repository and updates
+      the workload version to match the current git revision.
+
+      Usage:
+        juju run ubuntu-desktop-versions/0 update-checkout

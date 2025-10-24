@@ -135,19 +135,26 @@ class TestStartEvent:
 class TestConfigChanged:
     """Tests for config-changed event."""
 
+    @patch("charm.IngressRequirer.provide_ingress_requirements")
     @patch("charm.Apache.configure")
     @patch("charm.Apache.build_vhost_config")
-    def test_config_changed_success(self, build_vhost_mock, configure_mock, ctx, base_state):
-        """Test config changed event successfully reconfigures Apache."""
+    def test_config_changed_success(
+        self, build_vhost_mock, configure_mock, ingress_mock, ctx, base_state
+    ):
+        """Test config changed event successfully reconfigures Apache and ingress."""
         build_vhost_mock.return_value = "<VirtualHost>test config</VirtualHost>"
         out = ctx.run(ctx.on.config_changed(), base_state)
         assert out.unit_status == ActiveStatus()
         assert build_vhost_mock.called
         assert configure_mock.called
+        ingress_mock.assert_called_once_with(port=80)
 
+    @patch("charm.IngressRequirer.provide_ingress_requirements")
     @patch("charm.Apache.configure")
     @patch("charm.Apache.build_vhost_config")
-    def test_config_changed_with_custom_config(self, build_vhost_mock, configure_mock, ctx):
+    def test_config_changed_with_custom_config(
+        self, build_vhost_mock, configure_mock, ingress_mock, ctx
+    ):
         """Test config changed with custom domain and port."""
         build_vhost_mock.return_value = "<VirtualHost *:8080>ServerName example.com</VirtualHost>"
         state = State(config={"domain": "example.com", "port": 8080})
@@ -156,10 +163,15 @@ class TestConfigChanged:
         # Verify build_vhost_config was called with the right values
         build_vhost_mock.assert_called_once_with("example.com", 8080)
         assert configure_mock.called
+        # Verify ingress was updated with the new port
+        ingress_mock.assert_called_once_with(port=8080)
 
+    @patch("charm.IngressRequirer.provide_ingress_requirements")
     @patch("charm.Apache.configure")
     @patch("charm.Apache.build_vhost_config")
-    def test_config_changed_failure(self, build_vhost_mock, configure_mock, ctx, base_state):
+    def test_config_changed_failure(
+        self, build_vhost_mock, configure_mock, ingress_mock, ctx, base_state
+    ):
         """Test config changed event failure during Apache reconfiguration."""
         build_vhost_mock.return_value = "<VirtualHost>test config</VirtualHost>"
         configure_mock.side_effect = CalledProcessError(1, "systemctl reload apache2")
@@ -167,16 +179,8 @@ class TestConfigChanged:
         assert out.unit_status == BlockedStatus(
             "Failed to configure Apache. Check `juju debug-log` for details."
         )
-
-
-class TestStopEvent:
-    """Tests for stop event."""
-
-    @patch("charm.Versions.disable_crontab")
-    def test_stop_success(self, disable_crontab_mock, ctx, base_state):
-        """Test successful stop event."""
-        ctx.run(ctx.on.stop(), base_state)
-        assert disable_crontab_mock.called
+        # Ingress should not be updated if Apache configuration fails
+        assert not ingress_mock.called
 
 
 class TestRefreshReportsAction:
@@ -198,6 +202,26 @@ class TestRefreshReportsAction:
             ctx.run(ctx.on.action("refresh-reports"), base_state)
         assert "Report generation failed" in str(exc_info.value)
         assert generate_reports_mock.called
+
+
+class TestUpdateCheckoutAction:
+    """Tests for update-checkout action."""
+
+    @patch("charm.Versions.update_checkout")
+    def test_update_checkout_success(self, update_checkout_mock, ctx, base_state):
+        """Test successful manual checkout update action."""
+        update_checkout_mock.return_value = "v1.2.3"
+        out = ctx.run(ctx.on.action("update-checkout"), base_state)
+        assert out.unit_status == ActiveStatus()
+        assert update_checkout_mock.called
+
+    @patch("charm.Versions.update_checkout")
+    def test_update_checkout_failure(self, update_checkout_mock, ctx, base_state):
+        """Test failed manual checkout update action."""
+        update_checkout_mock.side_effect = CalledProcessError(1, "git pull")
+        with pytest.raises(ActionFailed) as exc_info:
+            ctx.run(ctx.on.action("update-checkout"), base_state)
+        assert "Failed to update checkout" in str(exc_info.value)
 
 
 class TestApache:

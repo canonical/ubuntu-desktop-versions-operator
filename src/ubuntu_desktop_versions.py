@@ -35,6 +35,7 @@ REPO_LOCATION = Path("/app/ubuntu-desktop-versions")
 REPO_URL = "https://git.launchpad.net/ubuntu-desktop-versions"
 OUTPUT_DIR = Path("/var/www/html/versions")
 LOG_DIR = Path("/var/log/ubuntu-desktop-versions")
+LOGROTATE_CONFIG_DST = Path("/etc/logrotate.d/ubuntu-desktop-versions")
 
 
 class Versions:
@@ -140,6 +141,12 @@ class Versions:
             logger.debug("Directory ownership set to www-data")
         except (LookupError, PermissionError) as e:
             logger.warning("Failed to set directory ownership: %s", e)
+
+        # Install logrotate configuration to prevent logs from growing infinitely
+        logrotate_config_src = Path(__file__).parent / "logrotate.conf"
+        shutil.copy2(logrotate_config_src, LOGROTATE_CONFIG_DST)
+        LOGROTATE_CONFIG_DST.chmod(0o644)
+        logger.debug("Logrotate configuration installed: %s", LOGROTATE_CONFIG_DST)
 
     def update_checkout(self):
         """Update ubuntu-desktop-versions via checking out the repository."""

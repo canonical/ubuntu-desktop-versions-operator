@@ -11,6 +11,7 @@ import pytest
 
 from ubuntu_desktop_versions import (
     LOG_DIR,
+    LOGROTATE_CONFIG_DST,
     OUTPUT_DIR,
     PACKAGES,
     REPO_LOCATION,
@@ -45,9 +46,13 @@ class TestInstall:
 
     @patch("ubuntu_desktop_versions.apt")
     @patch("ubuntu_desktop_versions.run")
+    @patch("ubuntu_desktop_versions.shutil.copy2")
     @patch("ubuntu_desktop_versions.shutil.chown")
+    @patch.object(Path, "chmod")
     @patch.object(Path, "mkdir")
-    def test_install_success(self, mock_mkdir, mock_chown, mock_run, mock_apt, versions):
+    def test_install_success(
+        self, mock_mkdir, mock_chmod, mock_chown, mock_copy2, mock_run, mock_apt, versions
+    ):
         """Test successful installation."""
         # Mock subprocess.run for git clone
         mock_run.return_value = MagicMock(returncode=0, stdout="")
@@ -73,6 +78,11 @@ class TestInstall:
         assert mock_chown.call_count == 2
         mock_chown.assert_any_call(OUTPUT_DIR, "www-data")
         mock_chown.assert_any_call(LOG_DIR, "www-data")
+
+        # Verify logrotate configuration installed
+        mock_copy2.assert_called_once()
+        assert mock_copy2.call_args[0][1] == LOGROTATE_CONFIG_DST
+        mock_chmod.assert_called_once_with(0o644)
 
     @patch("ubuntu_desktop_versions.apt")
     def test_install_apt_update_fails(self, mock_apt, versions):
