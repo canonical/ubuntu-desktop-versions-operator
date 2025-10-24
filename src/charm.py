@@ -5,10 +5,12 @@
 """Charm the application."""
 
 import logging
+import socket
 from subprocess import CalledProcessError
 
 import ops
 from charms.operator_libs_linux.v0.apt import PackageError, PackageNotFoundError
+from charms.traefik_k8s.v2.ingress import IngressPerAppRequirer as IngressRequirer
 
 from apache import Apache
 from ubuntu_desktop_versions import Versions
@@ -21,6 +23,11 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
 
     def __init__(self, framework: ops.Framework):
         super().__init__(framework)
+
+        # Initialize ingress integration
+        port = int(self.config.get("port", 80))
+        self.ingress = IngressRequirer(self, port=port, strip_prefix=True, relation_name="ingress")
+
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
@@ -28,6 +35,11 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
         self.framework.observe(
             self.on.generate_versions_report_action, self._on_generate_versions_report
         )
+
+        # Observe ingress events
+        self.framework.observe(self.ingress.on.ready, self._on_ingress_ready)
+        self.framework.observe(self.ingress.on.revoked, self._on_ingress_revoked)
+
         self._versions = Versions()
         self._apache = Apache()
 
@@ -127,6 +139,14 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
         except CalledProcessError as e:
             logger.exception("Failed to disable the crontab: %s", e)
             return
+
+    def _on_ingress_ready(self, event):
+        """Handle ingress ready event."""
+        logger.info("Ingress is ready at %s", self.ingress.url)
+
+    def _on_ingress_revoked(self, event):
+        """Handle ingress revoked event."""
+        logger.info("Ingress has been revoked")
 
 
 if __name__ == "__main__":  # pragma: nocover
