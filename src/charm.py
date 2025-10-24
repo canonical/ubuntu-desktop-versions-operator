@@ -5,7 +5,6 @@
 """Charm the application."""
 
 import logging
-import socket
 from subprocess import CalledProcessError
 
 import ops
@@ -32,9 +31,7 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
         self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.stop, self._on_stop)
-        self.framework.observe(
-            self.on.refresh_reports_action, self._on_refresh_reports
-        )
+        self.framework.observe(self.on.refresh_reports_action, self._on_refresh_reports)
 
         # Observe ingress events
         self.framework.observe(self.ingress.on.ready, self._on_ingress_ready)

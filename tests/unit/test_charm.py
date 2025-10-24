@@ -18,10 +18,9 @@ from ops.testing import (
     BlockedStatus,
     Context,
     State,
-    SubordinateRelation,
 )
 
-from charm import UbuntuDesktopVersionsOperatorCharm, build_vhost_config
+from charm import UbuntuDesktopVersionsOperatorCharm
 
 
 @pytest.fixture
@@ -37,14 +36,30 @@ def base_state():
 class TestInstallEvent:
     """Tests for install event."""
 
+    @patch("charm.Apache.configure")
+    @patch("charm.Apache.build_vhost_config")
+    @patch("charm.Apache.install")
     @patch("charm.Versions.setup_crontab")
     @patch("charm.Versions.install")
-    def test_install_success(self, install_mock, setup_crontab_mock, ctx, base_state):
+    def test_install_success(
+        self,
+        versions_install_mock,
+        setup_crontab_mock,
+        apache_install_mock,
+        build_vhost_mock,
+        apache_configure_mock,
+        ctx,
+        base_state,
+    ):
         """Test successful install event."""
+        build_vhost_mock.return_value = "<VirtualHost>test config</VirtualHost>"
         out = ctx.run(ctx.on.install(), base_state)
         assert out.unit_status == ActiveStatus()
-        assert install_mock.called
+        assert versions_install_mock.called
         assert setup_crontab_mock.called
+        assert apache_install_mock.called
+        assert build_vhost_mock.called
+        assert apache_configure_mock.called
 
     @patch("charm.Versions.install")
     @pytest.mark.parametrize(
@@ -56,6 +71,42 @@ class TestInstallEvent:
         out = ctx.run(ctx.on.install(), base_state)
         assert out.unit_status == BlockedStatus(
             "Failed to set up the environment. Check `juju debug-log` for details."
+        )
+
+    @patch("charm.Apache.install")
+    @patch("charm.Versions.setup_crontab")
+    @patch("charm.Versions.install")
+    def test_install_failure_during_apache_install(
+        self, versions_install_mock, setup_crontab_mock, apache_install_mock, ctx, base_state
+    ):
+        """Test install event failure during Apache installation."""
+        apache_install_mock.side_effect = CalledProcessError(1, "a2enmod")
+        out = ctx.run(ctx.on.install(), base_state)
+        assert out.unit_status == BlockedStatus(
+            "Failed to install Apache. Check `juju debug-log` for details."
+        )
+
+    @patch("charm.Apache.configure")
+    @patch("charm.Apache.build_vhost_config")
+    @patch("charm.Apache.install")
+    @patch("charm.Versions.setup_crontab")
+    @patch("charm.Versions.install")
+    def test_install_failure_during_apache_config(
+        self,
+        versions_install_mock,
+        setup_crontab_mock,
+        apache_install_mock,
+        build_vhost_mock,
+        apache_configure_mock,
+        ctx,
+        base_state,
+    ):
+        """Test install event failure during Apache configuration."""
+        build_vhost_mock.return_value = "<VirtualHost>test config</VirtualHost>"
+        apache_configure_mock.side_effect = CalledProcessError(1, "systemctl reload apache2")
+        out = ctx.run(ctx.on.install(), base_state)
+        assert out.unit_status == BlockedStatus(
+            "Failed to configure Apache. Check `juju debug-log` for details."
         )
 
 
@@ -84,18 +135,38 @@ class TestStartEvent:
 class TestConfigChanged:
     """Tests for config-changed event."""
 
-    @patch("charm.UbuntuDesktopVersionsOperatorCharm._configure_apache_website")
-    def test_config_changed_with_relation(self, configure_mock, ctx):
-        """Test config changed event with apache-website relation."""
-        rel = SubordinateRelation(
-            endpoint="apache-website",
-            interface="apache-website",
-            remote_app_name="apache2",
-        )
-        state = State(relations=[rel])
+    @patch("charm.Apache.configure")
+    @patch("charm.Apache.build_vhost_config")
+    def test_config_changed_success(self, build_vhost_mock, configure_mock, ctx, base_state):
+        """Test config changed event successfully reconfigures Apache."""
+        build_vhost_mock.return_value = "<VirtualHost>test config</VirtualHost>"
+        out = ctx.run(ctx.on.config_changed(), base_state)
+        assert out.unit_status == ActiveStatus()
+        assert build_vhost_mock.called
+        assert configure_mock.called
+
+    @patch("charm.Apache.configure")
+    @patch("charm.Apache.build_vhost_config")
+    def test_config_changed_with_custom_config(self, build_vhost_mock, configure_mock, ctx):
+        """Test config changed with custom domain and port."""
+        build_vhost_mock.return_value = "<VirtualHost *:8080>ServerName example.com</VirtualHost>"
+        state = State(config={"domain": "example.com", "port": 8080})
         out = ctx.run(ctx.on.config_changed(), state)
         assert out.unit_status == ActiveStatus()
+        # Verify build_vhost_config was called with the right values
+        build_vhost_mock.assert_called_once_with("example.com", 8080)
         assert configure_mock.called
+
+    @patch("charm.Apache.configure")
+    @patch("charm.Apache.build_vhost_config")
+    def test_config_changed_failure(self, build_vhost_mock, configure_mock, ctx, base_state):
+        """Test config changed event failure during Apache reconfiguration."""
+        build_vhost_mock.return_value = "<VirtualHost>test config</VirtualHost>"
+        configure_mock.side_effect = CalledProcessError(1, "systemctl reload apache2")
+        out = ctx.run(ctx.on.config_changed(), base_state)
+        assert out.unit_status == BlockedStatus(
+            "Failed to configure Apache. Check `juju debug-log` for details."
+        )
 
 
 class TestStopEvent:
@@ -108,83 +179,43 @@ class TestStopEvent:
         assert disable_crontab_mock.called
 
 
-class TestGenerateVersionsReportAction:
-    """Tests for generate-versions-report action."""
+class TestRefreshReportsAction:
+    """Tests for refresh-reports action."""
 
     @patch("charm.Versions.generate_reports")
-    def test_generate_versions_report_success(self, generate_reports_mock, ctx, base_state):
-        """Test successful generate_versions_report action."""
+    def test_refresh_reports_success(self, generate_reports_mock, ctx, base_state):
+        """Test successful manual report refresh action."""
         generate_reports_mock.return_value = True
-        out = ctx.run(ctx.on.action("generate-versions-report"), base_state)
+        out = ctx.run(ctx.on.action("refresh-reports"), base_state)
         assert out.unit_status == ActiveStatus()
         assert generate_reports_mock.called
 
     @patch("charm.Versions.generate_reports")
-    def test_generate_versions_report_failure(self, generate_reports_mock, ctx, base_state):
-        """Test failed generate_versions_report action."""
+    def test_refresh_reports_failure(self, generate_reports_mock, ctx, base_state):
+        """Test failed manual report refresh action."""
         generate_reports_mock.return_value = False
         with pytest.raises(ActionFailed) as exc_info:
-            ctx.run(ctx.on.action("generate-versions-report"), base_state)
+            ctx.run(ctx.on.action("refresh-reports"), base_state)
         assert "Report generation failed" in str(exc_info.value)
         assert generate_reports_mock.called
 
 
-class TestApacheWebsiteRelation:
-    """Tests for apache-website relation."""
-
-    def test_apache_website_relation_joined(self, ctx):
-        """Test apache-website relation joined event."""
-        rel = SubordinateRelation(
-            endpoint="apache-website",
-            interface="apache-website",
-            remote_app_name="apache2",
-        )
-        state = State(relations=[rel], config={"domain": "example.com", "port": 8080})
-        out = ctx.run(ctx.on.relation_joined(rel), state)
-        # Verify relation data was set
-        out_rel = next(iter(out.relations))
-        assert out_rel.local_unit_data["domain"] == "example.com"
-        assert out_rel.local_unit_data["enabled"] == "true"
-        assert out_rel.local_unit_data["ports"] == "8080"
-        assert out_rel.local_unit_data["site_modules"] == "headers deflate expires"
-        assert "VirtualHost" in out_rel.local_unit_data["site_config"]
-
-    def test_apache_website_relation_changed(self, ctx):
-        """Test apache-website relation changed event."""
-        rel = SubordinateRelation(
-            endpoint="apache-website",
-            interface="apache-website",
-            remote_app_name="apache2",
-        )
-        state = State(relations=[rel], config={"domain": "test.local", "port": 80})
-        out = ctx.run(ctx.on.relation_changed(rel), state)
-        # Verify relation data was set
-        out_rel = next(iter(out.relations))
-        assert out_rel.local_unit_data["domain"] == "test.local"
-        assert out_rel.local_unit_data["ports"] == "80"
-
-    def test_apache_website_relation_default_config(self, ctx):
-        """Test apache-website relation with default config values."""
-        rel = SubordinateRelation(
-            endpoint="apache-website",
-            interface="apache-website",
-            remote_app_name="apache2",
-        )
-        state = State(relations=[rel])
-        out = ctx.run(ctx.on.relation_joined(rel), state)
-        # Verify defaults are used
-        out_rel = next(iter(out.relations))
-        assert out_rel.local_unit_data["domain"] == "localhost"
-        assert out_rel.local_unit_data["ports"] == "80"
-
-
-class TestBuildVhostConfig:
-    """Tests for build_vhost_config helper function."""
+class TestApache:
+    """Tests for Apache class methods."""
 
     def test_build_vhost_config(self):
-        """Test build_vhost_config function."""
-        vhost_config = build_vhost_config("example.com", 8080)
+        """Test build_vhost_config method."""
+        from apache import Apache
+
+        apache = Apache()
+        vhost_config = apache.build_vhost_config("example.com", 8080)
 
         # Verify template substitution
         assert "ServerName example.com" in vhost_config
         assert "VirtualHost *:8080" in vhost_config
+        assert "DocumentRoot /var/www/html/versions" in vhost_config
+        # Verify security headers are present
+        assert "X-Frame-Options" in vhost_config
+        assert "X-Content-Type-Options" in vhost_config
+        assert "X-XSS-Protection" in vhost_config
+        assert "Referrer-Policy" in vhost_config
