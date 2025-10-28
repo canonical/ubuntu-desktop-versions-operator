@@ -1,0 +1,14 @@
+name: Publish charm to edge
+
+on:
+  workflow_run: ["Tests"]
+  types:
+    - completed
+  branches:
+    - main
+
+jobs:
+  publish-to-edge:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    uses: canonical/operator-workflows/.github/workflows/publish_charm.yaml@main
+    secrets: inherit
