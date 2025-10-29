@@ -1,11 +1,12 @@
 name: Publish charm to edge
 
 on:
-  workflow_run: ["Tests"]
-  types:
-    - completed
-  branches:
-    - main
+  workflow_run: 
+    workflows: ["Tests"]
+    types:
+      - completed
+    branches:
+      - main
 
 jobs:
   publish-to-edge:
