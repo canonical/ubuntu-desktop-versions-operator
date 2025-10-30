@@ -18,6 +18,7 @@ from ops.testing import (
     BlockedStatus,
     Context,
     State,
+    TCPPort,
 )
 
 from charm import UbuntuDesktopVersionsOperatorCharm
@@ -120,6 +121,7 @@ class TestStartEvent:
         out = ctx.run(ctx.on.start(), base_state)
         assert out.unit_status == ActiveStatus()
         assert update_checkout_mock.called
+        assert out.opened_ports == {TCPPort(port=80, protocol="tcp")}
 
     @patch("charm.Versions.update_checkout")
     def test_start_failure(self, update_checkout_mock, ctx, base_state):
@@ -130,6 +132,7 @@ class TestStartEvent:
             "Failed to start services. Check `juju debug-log` for details."
         )
         assert update_checkout_mock.called
+        assert out.opened_ports == set()
 
 
 class TestConfigChanged:
@@ -148,6 +151,7 @@ class TestConfigChanged:
         assert build_vhost_mock.called
         assert configure_mock.called
         ingress_mock.assert_called_once_with(port=80)
+        assert out.opened_ports == {TCPPort(port=80, protocol="tcp")}
 
     @patch("charm.IngressRequirer.provide_ingress_requirements")
     @patch("charm.Apache.configure")
@@ -165,6 +169,7 @@ class TestConfigChanged:
         assert configure_mock.called
         # Verify ingress was updated with the new port
         ingress_mock.assert_called_once_with(port=8080)
+        assert out.opened_ports == {TCPPort(port=8080, protocol="tcp")}
 
     @patch("charm.IngressRequirer.provide_ingress_requirements")
     @patch("charm.Apache.configure")
@@ -181,6 +186,7 @@ class TestConfigChanged:
         )
         # Ingress should not be updated if Apache configuration fails
         assert not ingress_mock.called
+        assert out.opened_ports == set()
 
 
 class TestRefreshReportsAction:
