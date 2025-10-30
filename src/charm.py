@@ -81,6 +81,7 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
     def _on_start(self, event: ops.StartEvent):
         """Handle start event."""
         self.unit.status = ops.MaintenanceStatus("Updating ubuntu-desktop-versions checkout")
+        port = int(self.config.get("port", 80))
 
         try:
             version = self._versions.update_checkout()
@@ -91,6 +92,7 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
             )
             return
 
+        self.unit.open_port(protocol="tcp", port=port)
         self.unit.status = ops.ActiveStatus()
 
     def _on_config_changed(self, event: ops.ConfigChangedEvent):
@@ -112,7 +114,7 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
 
         # Reconfigure ingress with the new port
         self.ingress.provide_ingress_requirements(port=port)
-
+        self.unit.open_port(protocol="tcp", port=port)
         self.unit.status = ops.ActiveStatus()
 
     def _on_refresh_reports(self, event: ops.ActionEvent):
