@@ -1,5 +1,5 @@
 type: charm
-name: ubuntu-desktop-versions-operator
+name: desktop-versions
 title: Ubuntu Desktop Versions
 summary: A simple service to check if Ubuntu packages are up to date.
 description: |
