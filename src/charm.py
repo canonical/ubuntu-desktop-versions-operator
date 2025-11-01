@@ -2,7 +2,7 @@
 # Copyright 2025 Canonical
 # See LICENSE file for licensing details.
 
-"""Charm the application."""
+"""Ubuntu Desktop Versions operator code."""
 
 import logging
 from subprocess import CalledProcessError
