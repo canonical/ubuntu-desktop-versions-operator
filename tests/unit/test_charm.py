@@ -11,15 +11,8 @@ from subprocess import CalledProcessError
 from unittest.mock import patch
 
 import pytest
-from charms.operator_libs_linux.v0.apt import PackageError, PackageNotFoundError
-from ops.testing import (
-    ActionFailed,
-    ActiveStatus,
-    BlockedStatus,
-    Context,
-    State,
-    TCPPort,
-)
+from charmlibs.apt import PackageError, PackageNotFoundError
+from ops.testing import ActionFailed, ActiveStatus, BlockedStatus, Context, State, TCPPort
 
 from charm import UbuntuDesktopVersionsOperatorCharm
 

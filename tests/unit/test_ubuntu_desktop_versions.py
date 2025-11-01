@@ -97,7 +97,7 @@ class TestInstall:
     @patch("ubuntu_desktop_versions.apt")
     def test_install_package_not_found(self, mock_apt, versions):
         """Test that install raises when package is not found."""
-        from lib.charms.operator_libs_linux.v0.apt import PackageNotFoundError
+        from charmlibs.apt import PackageNotFoundError
 
         mock_apt.add_package.side_effect = PackageNotFoundError("test-package")
 

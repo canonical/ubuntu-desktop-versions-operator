@@ -2,13 +2,13 @@
 # Copyright 2025 Canonical
 # See LICENSE file for licensing details.
 
-"""Charm the application."""
+"""Ubuntu Desktop Versions operator code."""
 
 import logging
 from subprocess import CalledProcessError
 
 import ops
-from charms.operator_libs_linux.v0.apt import PackageError, PackageNotFoundError
+from charmlibs.apt import PackageError, PackageNotFoundError
 from charms.traefik_k8s.v2.ingress import IngressPerAppRequirer as IngressRequirer
 
 from apache import Apache
