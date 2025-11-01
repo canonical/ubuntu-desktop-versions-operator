@@ -1,9 +1,33 @@
-venv/
-build/
-*.charm
+# Code editors/IDEs
+.vscode
+
+# Python
+.venv
+__pycache__
+.pytest_cache
+.mypy_cache
+eggs/
+.eggs/
+*.egg
+*.egg-info
+.ruff_cache/
+
+# Unit test / coverage reports
+htmlcov/
 .tox/
+.nox/
 .coverage
-__pycache__/
-*.py[cod]
-.idea
-.vscode/
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py.cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Build artifacts
+*.rock
+*.charm
+build/
