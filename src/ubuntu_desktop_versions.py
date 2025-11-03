@@ -63,7 +63,7 @@ def write_launchpad_credentials(credentials: str) -> None:
     try:
         # Create directory, write file, and set permissions
         LP_CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
-        LP_CREDENTIALS_FILE.write_text(credentials)
+        LP_CREDENTIALS_FILE.write_text(credentials, encoding="utf-8")
         LP_CREDENTIALS_FILE.chmod(0o600)
 
         # Set ownership to www-data for cron job access
