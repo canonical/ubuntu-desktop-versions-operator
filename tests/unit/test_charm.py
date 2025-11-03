@@ -54,7 +54,19 @@ class TestInstallEvent:
     ):
         """Test successful install event."""
         build_vhost_mock.return_value = "<VirtualHost>test config</VirtualHost>"
-        out = ctx.run(ctx.on.install(), base_state)
+
+        # Mock secret with credentials
+        state_with_secret = State(
+            secrets=[
+                {
+                    "id": "secret:123",
+                    "label": "launchpad-credentials",
+                    "contents": {0: {"credentials": "test-token"}},
+                }
+            ]
+        )
+
+        out = ctx.run(ctx.on.install(), state_with_secret)
         assert out.unit_status == ActiveStatus()
         assert versions_install_mock.called
         assert setup_crontab_mock.called
@@ -62,14 +74,32 @@ class TestInstallEvent:
         assert build_vhost_mock.called
         assert apache_configure_mock.called
 
+    def test_install_blocked_without_credentials(self, ctx, base_state):
+        """Test install event blocks when no credentials are provided."""
+        out = ctx.run(ctx.on.install(), base_state)
+        assert isinstance(out.unit_status, BlockedStatus)
+        assert "Launchpad credentials required" in out.unit_status.message
+
     @patch("charm.Versions.install")
     @pytest.mark.parametrize(
         "exception", [PackageError, PackageNotFoundError, CalledProcessError(1, "foo")]
     )
-    def test_install_failure_during_setup(self, mock, exception, ctx, base_state):
+    def test_install_failure_during_setup(self, mock, exception, ctx):
         """Test install event failure during environment setup."""
         mock.side_effect = exception
-        out = ctx.run(ctx.on.install(), base_state)
+
+        # Mock secret with credentials
+        state_with_secret = State(
+            secrets=[
+                {
+                    "id": "secret:123",
+                    "label": "launchpad-credentials",
+                    "contents": {0: {"credentials": "test-token"}},
+                }
+            ]
+        )
+
+        out = ctx.run(ctx.on.install(), state_with_secret)
         assert out.unit_status == BlockedStatus(
             "Failed to set up the environment. Check `juju debug-log` for details."
         )
@@ -78,11 +108,23 @@ class TestInstallEvent:
     @patch("charm.Versions.setup_crontab")
     @patch("charm.Versions.install")
     def test_install_failure_during_apache_install(
-        self, versions_install_mock, setup_crontab_mock, apache_install_mock, ctx, base_state
+        self, versions_install_mock, setup_crontab_mock, apache_install_mock, ctx
     ):
         """Test install event failure during Apache installation."""
         apache_install_mock.side_effect = CalledProcessError(1, "a2enmod")
-        out = ctx.run(ctx.on.install(), base_state)
+
+        # Mock secret with credentials
+        state_with_secret = State(
+            secrets=[
+                {
+                    "id": "secret:123",
+                    "label": "launchpad-credentials",
+                    "contents": {0: {"credentials": "test-token"}},
+                }
+            ]
+        )
+
+        out = ctx.run(ctx.on.install(), state_with_secret)
         assert out.unit_status == BlockedStatus(
             "Failed to install Apache. Check `juju debug-log` for details."
         )
@@ -100,12 +142,23 @@ class TestInstallEvent:
         build_vhost_mock,
         apache_configure_mock,
         ctx,
-        base_state,
     ):
         """Test install event failure during Apache configuration."""
         build_vhost_mock.return_value = "<VirtualHost>test config</VirtualHost>"
         apache_configure_mock.side_effect = CalledProcessError(1, "systemctl reload apache2")
-        out = ctx.run(ctx.on.install(), base_state)
+
+        # Mock secret with credentials
+        state_with_secret = State(
+            secrets=[
+                {
+                    "id": "secret:123",
+                    "label": "launchpad-credentials",
+                    "contents": {0: {"credentials": "test-token"}},
+                }
+            ]
+        )
+
+        out = ctx.run(ctx.on.install(), state_with_secret)
         assert out.unit_status == BlockedStatus(
             "Failed to configure Apache. Check `juju debug-log` for details."
         )

@@ -41,6 +41,57 @@ class TestVersionsInit:
         assert versions.env["HTTPS_PROXY"] == "https://proxy.example.com:8443"
         assert versions.proxies["https"] == "https://proxy.example.com:8443"
 
+    def test_init_with_credentials(self):
+        """Test that credentials are stored during initialization."""
+        credentials = "test-credentials-string"
+        versions = Versions(launchpad_credentials=credentials)
+
+        assert versions.launchpad_credentials == credentials
+
+    def test_init_without_credentials(self):
+        """Test that initialization works without credentials."""
+        versions = Versions()
+
+        assert versions.launchpad_credentials is None
+
+
+class TestInstallLaunchpadCredentials:
+    """Tests for Versions.install_launchpad_credentials()."""
+
+    @patch.object(Path, "mkdir")
+    @patch.object(Path, "write_text")
+    @patch.object(Path, "chmod")
+    def test_install_credentials_success(self, mock_chmod, mock_write_text, mock_mkdir):
+        """Test successful installation of Launchpad credentials."""
+        credentials = "test-credentials-content"
+        versions = Versions(launchpad_credentials=credentials)
+
+        versions.install_launchpad_credentials()
+
+        # Verify directory was created
+        mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
+
+        # Verify credentials were written
+        mock_write_text.assert_called_once_with(credentials)
+
+        # Verify file permissions were set
+        mock_chmod.assert_called_once_with(0o600)
+
+        # Verify environment variable was set
+        from ubuntu_desktop_versions import LP_CREDENTIALS_FILE
+
+        assert versions.env["LP_CREDENTIALS_FILE"] == str(LP_CREDENTIALS_FILE)
+
+    def test_install_credentials_without_credentials(self):
+        """Test that install_launchpad_credentials does nothing without credentials."""
+        versions = Versions()
+
+        # Should not raise an error
+        versions.install_launchpad_credentials()
+
+        # Environment variable should not be set
+        assert "LP_CREDENTIALS_FILE" not in versions.env
+
 
 class TestInstall:
     """Tests for Versions.install()."""
@@ -67,8 +118,9 @@ class TestInstall:
         for package in PACKAGES:
             mock_apt.add_package.assert_any_call(package)
 
-        # Verify git clone
-        call_args = mock_run.call_args_list[0]
+        # Verify git clone (only one run call now, no sed)
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args
         assert call_args[0][0] == ["git", "clone", "-b", "master", REPO_URL, REPO_LOCATION]
         assert call_args[1]["env"] == versions.env
 
@@ -84,6 +136,41 @@ class TestInstall:
         mock_copy2.assert_called_once()
         assert mock_copy2.call_args[0][1] == LOGROTATE_CONFIG_DST
         mock_chmod.assert_called_once_with(0o644)
+
+    @patch("ubuntu_desktop_versions.apt")
+    @patch("ubuntu_desktop_versions.run")
+    @patch("ubuntu_desktop_versions.shutil.copy2")
+    @patch("ubuntu_desktop_versions.shutil.chown")
+    @patch.object(Path, "chmod")
+    @patch.object(Path, "mkdir")
+    @patch.object(Path, "write_text")
+    def test_install_with_credentials(
+        self,
+        mock_write_text,
+        mock_mkdir,
+        mock_chmod,
+        mock_chown,
+        mock_copy2,
+        mock_run,
+        mock_apt,
+    ):
+        """Test installation with Launchpad credentials."""
+        credentials = "test-launchpad-credentials"
+        versions = Versions(launchpad_credentials=credentials)
+
+        # Mock subprocess.run for git clone
+        mock_run.return_value = MagicMock(returncode=0, stdout="")
+
+        # Run install
+        versions.install()
+
+        # Verify credentials were written
+        mock_write_text.assert_called_once_with(credentials)
+
+        # Verify environment variable was set
+        from ubuntu_desktop_versions import LP_CREDENTIALS_FILE
+
+        assert versions.env["LP_CREDENTIALS_FILE"] == str(LP_CREDENTIALS_FILE)
 
     @patch("ubuntu_desktop_versions.apt")
     def test_install_apt_update_fails(self, mock_apt, versions):

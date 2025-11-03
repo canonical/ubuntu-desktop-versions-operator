@@ -2,4 +2,4 @@
 # Runs every 6 hours to generate package version comparison reports
 
 # m h  dom mon dow   command
-0 */6 * * * cd /app/ubuntu-desktop-versions && FLAVOR=ubuntu DISTRO_SERIES=resolute /usr/bin/python3 versions.py && cp *.html *.yaml *.yml /var/www/html/versions/ 2>&1 | tee /var/log/ubuntu-desktop-versions/cron.log
+0 */6 * * * cd /app/ubuntu-desktop-versions && LP_CREDENTIALS_FILE=/var/lib/ubuntu-desktop-versions/launchpad-credentials FLAVOR=ubuntu DISTRO_SERIES=resolute /usr/bin/python3 versions.py && cp *.html *.yaml *.yml /var/www/html/versions/ 2>&1 | tee /var/log/ubuntu-desktop-versions/cron.log

@@ -37,14 +37,64 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
         self.framework.observe(self.ingress.on.ready, self._on_ingress_ready)
         self.framework.observe(self.ingress.on.revoked, self._on_ingress_revoked)
 
-        self._versions = Versions()
+        # Observe secret events
+        self.framework.observe(self.on.secret_changed, self._on_secret_changed)
+
         self._apache = Apache()
+
+    def _get_versions_instance(self) -> Versions:
+        """Get a Versions instance with Launchpad credentials if available.
+
+        Returns:
+            A Versions instance configured with credentials if available.
+        """
+        launchpad_credentials = self._get_launchpad_credentials()
+        return Versions(launchpad_credentials=launchpad_credentials)
+
+    def _get_launchpad_credentials(self) -> str | None:
+        """Get Launchpad credentials from Juju secret.
+
+        Returns:
+            The Launchpad credentials string if available, None otherwise.
+        """
+        try:
+            # Try to get the secret by label
+            secret = self.model.get_secret(label="launchpad-credentials")
+            content = secret.get_content(refresh=True)
+            credentials = content.get("credentials")
+            if credentials:
+                logger.debug("Retrieved Launchpad credentials from secret")
+                return credentials
+            else:
+                logger.warning(
+                    "Secret 'launchpad-credentials' exists but has no 'credentials' key"
+                )
+                return None
+        except ops.SecretNotFoundError:
+            logger.debug("No Launchpad credentials secret found")
+            return None
 
     def _on_install(self, event: ops.InstallEvent):
         """Handle install event."""
+        self.unit.status = ops.MaintenanceStatus("Checking for Launchpad credentials")
+
+        # Get Launchpad credentials
+        launchpad_credentials = self._get_launchpad_credentials()
+        if not launchpad_credentials:
+            self.unit.status = ops.BlockedStatus(
+                "Launchpad credentials required. Create secret: "
+                "juju add-secret launchpad-credentials credentials=<token> && "
+                "juju grant-secret launchpad-credentials desktop-versions"
+            )
+            return
+
         self.unit.status = ops.MaintenanceStatus("Setting up environment")
+
+        # Create Versions instance with credentials
+        versions = Versions(launchpad_credentials=launchpad_credentials)
+
         try:
-            self._versions.install()
+            versions.install()
         except (CalledProcessError, PackageError, PackageNotFoundError):
             self.unit.status = ops.BlockedStatus(
                 "Failed to set up the environment. Check `juju debug-log` for details."
@@ -52,7 +102,7 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
             return
 
         self.unit.status = ops.MaintenanceStatus("Setting up crontab")
-        self._versions.setup_crontab()
+        versions.setup_crontab()
 
         self.unit.status = ops.MaintenanceStatus("Installing Apache")
         try:
@@ -84,7 +134,8 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
         port = int(self.config.get("port", 80))
 
         try:
-            version = self._versions.update_checkout()
+            versions = self._get_versions_instance()
+            version = versions.update_checkout()
             self.unit.set_workload_version(version)
         except CalledProcessError:
             self.unit.status = ops.BlockedStatus(
@@ -127,7 +178,8 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
         self.unit.status = ops.MaintenanceStatus("Generating version reports")
 
         event.log("Generating version reports, this may take a while (15-60 minutes)")
-        success = self._versions.generate_reports()
+        versions = self._get_versions_instance()
+        success = versions.generate_reports()
 
         if success:
             event.log("Report generation completed successfully")
@@ -148,7 +200,8 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
 
         event.log("Updating ubuntu-desktop-versions git repository")
         try:
-            version = self._versions.update_checkout()
+            versions = self._get_versions_instance()
+            version = versions.update_checkout()
             self.unit.set_workload_version(version)
             event.log(f"Update completed successfully. Current version: {version}")
             event.set_results({"version": version})
@@ -156,6 +209,12 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
             event.log("Update failed")
             event.fail("Failed to update checkout. Check `juju debug-log` for details.")
         self.unit.status = ops.ActiveStatus()
+
+    def _on_secret_changed(self, event: ops.SecretChangedEvent):
+        """Handle secret changed event."""
+        logger.info("Secret changed, credentials may have been updated")
+        # The credentials will be automatically picked up on the next operation
+        # that uses _get_versions_instance()
 
     def _on_ingress_ready(self, event):
         """Handle ingress ready event."""

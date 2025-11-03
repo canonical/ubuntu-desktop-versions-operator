@@ -36,13 +36,16 @@ REPO_URL = "https://git.launchpad.net/ubuntu-desktop-versions"
 OUTPUT_DIR = Path("/var/www/html/versions")
 LOG_DIR = Path("/var/log/ubuntu-desktop-versions")
 LOGROTATE_CONFIG_DST = Path("/etc/logrotate.d/ubuntu-desktop-versions")
+LP_CREDENTIALS_DIR = Path("/var/lib/ubuntu-desktop-versions")
+LP_CREDENTIALS_FILE = LP_CREDENTIALS_DIR / "launchpad-credentials"
 
 
 class Versions:
     """Represent a Versions instance in the workload."""
 
-    def __init__(self):
+    def __init__(self, launchpad_credentials: str | None = None):
         logger.debug("Versions class init")
+        self.launchpad_credentials = launchpad_credentials
         self.env = os.environ.copy()
         self.env["GIT_TERMINAL_PROMPT"] = "0"
         self.proxies = {}
@@ -57,8 +60,43 @@ class Versions:
             self.env["HTTPS_PROXY"] = juju_https_proxy
             self.proxies["https"] = juju_https_proxy
 
+    def install_launchpad_credentials(self):
+        """Install Launchpad credentials for authenticated access.
+
+        The credentials must be provided during initialization.
+        They will be written to a file that launchpadlib can use.
+        """
+        if not self.launchpad_credentials:
+            logger.info("No Launchpad credentials provided")
+            return
+
+        # Create the credentials directory
+        LP_CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
+        logger.debug("Launchpad credentials directory created: %s", LP_CREDENTIALS_DIR)
+
+        # Write the credentials to the file
+        LP_CREDENTIALS_FILE.write_text(self.launchpad_credentials)
+        LP_CREDENTIALS_FILE.chmod(0o600)
+        logger.debug("Launchpad credentials installed at: %s", LP_CREDENTIALS_FILE)
+
+        # Set ownership to www-data for the credentials directory and file
+        # The cron job runs as www-data and needs to read the credentials
+        try:
+            shutil.chown(LP_CREDENTIALS_DIR, "www-data")
+            shutil.chown(LP_CREDENTIALS_FILE, "www-data")
+            logger.debug("Credentials directory and file ownership set to www-data")
+        except (LookupError, PermissionError) as e:
+            logger.warning("Failed to set credentials ownership: %s", e)
+
+        # Set the environment variable for launchpadlib to find the credentials
+        self.env["LP_CREDENTIALS_FILE"] = str(LP_CREDENTIALS_FILE)
+        logger.debug("LP_CREDENTIALS_FILE environment variable set")
+
     def install(self):
         """Install the versions build dependencies."""
+        # Install Launchpad credentials if provided
+        self.install_launchpad_credentials()
+
         # Install the deb packages needed for the service
         try:
             apt.update()
@@ -98,29 +136,6 @@ class Versions:
             logger.debug("ubuntu-desktop-versions vcs cloned.")
         except CalledProcessError as e:
             logger.debug("Git clone of the code failed: %s", e.stdout)
-            raise
-
-        # FIXME: Patch versions.py to use anonymous login instead of
-        # authenticated login. Will revert when I have access to the LP
-        # bot. We will be subject to increased rate-limiting until then.
-        versions_file = REPO_LOCATION / "versions.py"
-        try:
-            run(
-                [
-                    "sed",
-                    "-i",
-                    "s/Launchpad.login_with(/Launchpad.login_anonymously(/",
-                    str(versions_file),
-                ],
-                check=True,
-                stdout=PIPE,
-                stderr=STDOUT,
-                text=True,
-                timeout=SHORT_TIMEOUT,
-            )
-            logger.debug("Patched versions.py for anonymous login")
-        except CalledProcessError as e:
-            logger.error("Failed to patch versions.py: %s", e)
             raise
 
         # Create output directory for HTML files
