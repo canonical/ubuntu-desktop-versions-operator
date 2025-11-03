@@ -83,8 +83,8 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
         if not launchpad_credentials:
             self.unit.status = ops.BlockedStatus(
                 "Launchpad credentials required. Create secret: "
-                "juju add-secret launchpad-credentials credentials=<token> && "
-                "juju grant-secret launchpad-credentials desktop-versions"
+                f"juju add-secret launchpad-credentials credentials=<token> && "
+                f"juju grant-secret launchpad-credentials {self.app.name}"
             )
             return
 

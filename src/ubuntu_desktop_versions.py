@@ -86,7 +86,8 @@ class Versions:
             shutil.chown(LP_CREDENTIALS_FILE, "www-data")
             logger.debug("Credentials directory and file ownership set to www-data")
         except (LookupError, PermissionError) as e:
-            logger.warning("Failed to set credentials ownership: %s", e)
+            logger.error("Failed to set credentials ownership: %s", e)
+            raise
 
         # Set the environment variable for launchpadlib to find the credentials
         self.env["LP_CREDENTIALS_FILE"] = str(LP_CREDENTIALS_FILE)
