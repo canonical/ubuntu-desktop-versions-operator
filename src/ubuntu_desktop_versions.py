@@ -12,8 +12,8 @@ import shutil
 from pathlib import Path
 from subprocess import PIPE, STDOUT, CalledProcessError, run
 
-from charms.operator_libs_linux.v0 import apt
-from charms.operator_libs_linux.v0.apt import PackageError, PackageNotFoundError
+from charmlibs import apt
+from charmlibs.apt import PackageError, PackageNotFoundError
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,11 @@ dynamic = ["version"]
 requires-python = ">=3.10"
 
 # Required group: these are all dependencies required to run the charm.
-dependencies = ["ops~=3.0", "pydantic"]
+dependencies = [
+    "charmlibs-apt>=1.0.0.post0",
+    "ops~=3.0",
+    "pydantic",
+]
 
 [dependency-groups]
 # Dependencies required to run all the charm's tests.
@@ -43,8 +47,8 @@ lint.extend-ignore = [
     "D409",
     "D413",
 ]
+lint.per-file-ignores = { "tests/*" = ["D100", "D101", "D102", "D103", "D104"] }
 extend-exclude = ["__pycache__", "*.egg_info"]
-lint.per-file-ignores = {"tests/*" = ["D100","D101","D102","D103","D104"]}
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10

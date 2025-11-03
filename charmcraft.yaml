@@ -23,8 +23,6 @@ parts:
       git describe --always > $CRAFT_PART_INSTALL/version
 
 charm-libs:
-  - lib: operator_libs_linux.apt
-    version: "0"
   - lib: traefik_k8s.ingress
     version: "2"
 
