@@ -40,6 +40,42 @@ LP_CREDENTIALS_DIR = Path("/var/lib/ubuntu-desktop-versions")
 LP_CREDENTIALS_FILE = LP_CREDENTIALS_DIR / "launchpad-credentials"
 
 
+def write_launchpad_credentials(credentials: str) -> None:
+    """Write Launchpad credentials to the filesystem.
+
+    This is a standalone function that writes credentials to the expected location
+    for launchpadlib to find them. It handles all necessary file operations including
+    directory creation, permissions, and ownership.
+
+    Args:
+        credentials: The Launchpad credentials string to write
+
+    Raises:
+        ValueError: If credentials are empty or whitespace only
+        OSError: If file operations fail (mkdir, write, chmod)
+        LookupError: If www-data user doesn't exist
+        PermissionError: If unable to set ownership
+    """
+    # Validate credentials are not empty after stripping whitespace
+    if not credentials or not credentials.strip():
+        raise ValueError("Launchpad credentials cannot be empty or whitespace only")
+
+    try:
+        # Create directory, write file, and set permissions
+        LP_CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
+        LP_CREDENTIALS_FILE.write_text(credentials)
+        LP_CREDENTIALS_FILE.chmod(0o600)
+
+        # Set ownership to www-data for cron job access
+        shutil.chown(LP_CREDENTIALS_DIR, "www-data")
+        shutil.chown(LP_CREDENTIALS_FILE, "www-data")
+
+        logger.info("Launchpad credentials installed at: %s", LP_CREDENTIALS_FILE)
+    except (OSError, LookupError, PermissionError) as e:
+        logger.error("Failed to install credentials: %s", e)
+        raise
+
+
 class Versions:
     """Represent a Versions instance in the workload."""
 
@@ -65,54 +101,12 @@ class Versions:
 
         The credentials must be provided during initialization.
         They will be written to a file that launchpadlib can use.
-
-        Raises:
-            ValueError: If credentials are empty or invalid
-            OSError: If file operations fail
-            LookupError: If www-data user doesn't exist
-            PermissionError: If unable to set ownership
         """
         if not self.launchpad_credentials:
             logger.info("No Launchpad credentials provided")
             return
 
-        # Validate credentials are not empty after stripping whitespace
-        if not self.launchpad_credentials.strip():
-            raise ValueError("Launchpad credentials cannot be empty or whitespace only")
-
-        # Create the credentials directory
-        try:
-            LP_CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
-            logger.debug("Launchpad credentials directory created: %s", LP_CREDENTIALS_DIR)
-        except OSError as e:
-            logger.error("Failed to create credentials directory: %s", e)
-            raise
-
-        # Write the credentials to the file
-        try:
-            LP_CREDENTIALS_FILE.write_text(self.launchpad_credentials)
-            logger.debug("Credentials written to file: %s", LP_CREDENTIALS_FILE)
-        except OSError as e:
-            logger.error("Failed to write credentials file: %s", e)
-            raise
-
-        # Set file permissions
-        try:
-            LP_CREDENTIALS_FILE.chmod(0o600)
-            logger.debug("Launchpad credentials file permissions set to 0600")
-        except OSError as e:
-            logger.error("Failed to set file permissions: %s", e)
-            raise
-
-        # Set ownership to www-data for the credentials directory and file
-        # The cron job runs as www-data and needs to read the credentials
-        try:
-            shutil.chown(LP_CREDENTIALS_DIR, "www-data")
-            shutil.chown(LP_CREDENTIALS_FILE, "www-data")
-            logger.debug("Credentials directory and file ownership set to www-data")
-        except (LookupError, PermissionError) as e:
-            logger.error("Failed to set credentials ownership: %s", e)
-            raise
+        write_launchpad_credentials(self.launchpad_credentials)
 
         # Set the environment variable for launchpadlib to find the credentials
         self.env["LP_CREDENTIALS_FILE"] = str(LP_CREDENTIALS_FILE)

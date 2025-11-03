@@ -18,6 +18,7 @@ from ubuntu_desktop_versions import (
     REPO_LOCATION,
     REPO_URL,
     Versions,
+    write_launchpad_credentials,
 )
 
 
@@ -58,24 +59,16 @@ class TestVersionsInit:
 class TestInstallLaunchpadCredentials:
     """Tests for Versions.install_launchpad_credentials()."""
 
-    @patch.object(Path, "mkdir")
-    @patch.object(Path, "write_text")
-    @patch.object(Path, "chmod")
-    def test_install_credentials_success(self, mock_chmod, mock_write_text, mock_mkdir):
+    @patch("ubuntu_desktop_versions.write_launchpad_credentials")
+    def test_install_credentials_success(self, mock_write):
         """Test successful installation of Launchpad credentials."""
         credentials = "test-credentials-content"
         versions = Versions(launchpad_credentials=credentials)
 
         versions.install_launchpad_credentials()
 
-        # Verify directory was created
-        mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
-
-        # Verify credentials were written
-        mock_write_text.assert_called_once_with(credentials)
-
-        # Verify file permissions were set
-        mock_chmod.assert_called_once_with(0o600)
+        # Verify standalone function was called
+        mock_write.assert_called_once_with(credentials)
 
         # Verify environment variable was set
         from ubuntu_desktop_versions import LP_CREDENTIALS_FILE
@@ -352,49 +345,44 @@ class TestGenerateReports:
         assert call_args[1]["timeout"] == LONG_TIMEOUT
 
 
-class TestInstallLaunchpadCredentialsValidation:
-    """Tests for credential validation in install_launchpad_credentials()."""
+class TestWriteLaunchpadCredentials:
+    """Tests for write_launchpad_credentials() standalone function."""
 
-    @patch.object(Path, "mkdir")
-    @patch.object(Path, "write_text")
-    @patch.object(Path, "chmod")
     @patch("ubuntu_desktop_versions.shutil.chown")
-    def test_install_credentials_empty_string(
-        self, mock_chown, mock_chmod, mock_write_text, mock_mkdir
+    @patch.object(Path, "chmod")
+    @patch.object(Path, "write_text")
+    @patch.object(Path, "mkdir")
+    def test_write_credentials_success(
+        self, mock_mkdir, mock_write_text, mock_chmod, mock_chown
     ):
-        """Test that empty credentials raise ValueError."""
-        credentials = "   "  # Whitespace only
-        versions = Versions(launchpad_credentials=credentials)
+        """Test successful credential writing."""
+        credentials = "test-credentials-content"
 
+        write_launchpad_credentials(credentials)
+
+        mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
+        mock_write_text.assert_called_once_with(credentials)
+        mock_chmod.assert_called_once_with(0o600)
+        assert mock_chown.call_count == 2
+
+    def test_write_credentials_empty_string(self):
+        """Test that empty credentials raise ValueError."""
         with pytest.raises(ValueError, match="cannot be empty or whitespace only"):
-            versions.install_launchpad_credentials()
+            write_launchpad_credentials("   ")
 
     @patch.object(Path, "mkdir")
-    def test_install_credentials_mkdir_fails(self, mock_mkdir):
+    def test_write_credentials_mkdir_fails(self, mock_mkdir):
         """Test handling of directory creation failure."""
         mock_mkdir.side_effect = OSError("Permission denied")
-        versions = Versions(launchpad_credentials="test-credentials")
 
         with pytest.raises(OSError, match="Permission denied"):
-            versions.install_launchpad_credentials()
+            write_launchpad_credentials("test-credentials")
 
     @patch.object(Path, "mkdir")
     @patch.object(Path, "write_text")
-    def test_install_credentials_write_fails(self, mock_write_text, mock_mkdir):
+    def test_write_credentials_write_fails(self, mock_write_text, mock_mkdir):
         """Test handling of file write failure."""
         mock_write_text.side_effect = OSError("Disk full")
-        versions = Versions(launchpad_credentials="test-credentials")
 
         with pytest.raises(OSError, match="Disk full"):
-            versions.install_launchpad_credentials()
-
-    @patch.object(Path, "mkdir")
-    @patch.object(Path, "write_text")
-    @patch.object(Path, "chmod")
-    def test_install_credentials_chmod_fails(self, mock_chmod, mock_write_text, mock_mkdir):
-        """Test handling of chmod failure."""
-        mock_chmod.side_effect = OSError("Cannot change permissions")
-        versions = Versions(launchpad_credentials="test-credentials")
-
-        with pytest.raises(OSError, match="Cannot change permissions"):
-            versions.install_launchpad_credentials()
+            write_launchpad_credentials("test-credentials")

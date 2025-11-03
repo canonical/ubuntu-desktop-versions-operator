@@ -12,7 +12,7 @@ from charms.operator_libs_linux.v0.apt import PackageError, PackageNotFoundError
 from charms.traefik_k8s.v2.ingress import IngressPerAppRequirer as IngressRequirer
 
 from apache import Apache
-from ubuntu_desktop_versions import Versions
+from ubuntu_desktop_versions import Versions, write_launchpad_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -239,10 +239,9 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
             )
             return
 
-        # Reinstall the credentials
+        # Reinstall the credentials using the standalone function
         try:
-            versions = Versions(launchpad_credentials=launchpad_credentials)
-            versions.install_launchpad_credentials()
+            write_launchpad_credentials(launchpad_credentials)
             logger.info("Credentials successfully reinstalled after secret change")
             self.unit.status = ops.ActiveStatus()
         except Exception as e:
