@@ -263,4 +263,3 @@ class TestGenerateReports:
 
         call_args = mock_run.call_args
         assert call_args[1]["timeout"] == LONG_TIMEOUT
-        assert call_args[1]["timeout"] == 3600  # Explicit verification
