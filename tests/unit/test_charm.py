@@ -302,3 +302,75 @@ class TestApache:
         assert "X-Content-Type-Options" in vhost_config
         assert "X-XSS-Protection" in vhost_config
         assert "Referrer-Policy" in vhost_config
+
+
+class TestSecretHandling:
+    """Tests for secret changed and removed events."""
+
+    @patch("charm.Versions.install_launchpad_credentials")
+    def test_secret_changed_success(self, install_mock, ctx):
+        """Test successful secret changed event."""
+        state_with_secret = State(
+            secrets=[
+                {
+                    "id": "secret:123",
+                    "label": "launchpad-credentials",
+                    "contents": {0: {"credentials": "new-token"}},
+                }
+            ]
+        )
+
+        out = ctx.run(ctx.on.secret_changed(id="secret:123"), state_with_secret)
+        assert out.unit_status == ActiveStatus()
+        assert install_mock.called
+
+    def test_secret_changed_no_credentials(self, ctx):
+        """Test secret changed event with invalid credentials."""
+        state_with_secret = State(
+            secrets=[
+                {
+                    "id": "secret:123",
+                    "label": "launchpad-credentials",
+                    "contents": {0: {"wrong-key": "value"}},
+                }
+            ]
+        )
+
+        out = ctx.run(ctx.on.secret_changed(id="secret:123"), state_with_secret)
+        assert isinstance(out.unit_status, BlockedStatus)
+        assert "no valid 'credentials' key" in out.unit_status.message
+
+    @patch("charm.Versions.install_launchpad_credentials")
+    def test_secret_changed_install_failure(self, install_mock, ctx):
+        """Test secret changed event with installation failure."""
+        install_mock.side_effect = Exception("Install failed")
+
+        state_with_secret = State(
+            secrets=[
+                {
+                    "id": "secret:123",
+                    "label": "launchpad-credentials",
+                    "contents": {0: {"credentials": "new-token"}},
+                }
+            ]
+        )
+
+        out = ctx.run(ctx.on.secret_changed(id="secret:123"), state_with_secret)
+        assert isinstance(out.unit_status, BlockedStatus)
+        assert "Failed to reinstall credentials" in out.unit_status.message
+
+    def test_secret_removed(self, ctx):
+        """Test secret removed event."""
+        state_with_secret = State(
+            secrets=[
+                {
+                    "id": "secret:123",
+                    "label": "launchpad-credentials",
+                    "contents": {0: {"credentials": "token"}},
+                }
+            ]
+        )
+
+        out = ctx.run(ctx.on.secret_removed(id="secret:123"), state_with_secret)
+        assert isinstance(out.unit_status, BlockedStatus)
+        assert "removed" in out.unit_status.message.lower()

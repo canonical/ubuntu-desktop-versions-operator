@@ -65,19 +65,44 @@ class Versions:
 
         The credentials must be provided during initialization.
         They will be written to a file that launchpadlib can use.
+
+        Raises:
+            ValueError: If credentials are empty or invalid
+            OSError: If file operations fail
+            LookupError: If www-data user doesn't exist
+            PermissionError: If unable to set ownership
         """
         if not self.launchpad_credentials:
             logger.info("No Launchpad credentials provided")
             return
 
+        # Validate credentials are not empty after stripping whitespace
+        if not self.launchpad_credentials.strip():
+            raise ValueError("Launchpad credentials cannot be empty or whitespace only")
+
         # Create the credentials directory
-        LP_CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
-        logger.debug("Launchpad credentials directory created: %s", LP_CREDENTIALS_DIR)
+        try:
+            LP_CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
+            logger.debug("Launchpad credentials directory created: %s", LP_CREDENTIALS_DIR)
+        except OSError as e:
+            logger.error("Failed to create credentials directory: %s", e)
+            raise
 
         # Write the credentials to the file
-        LP_CREDENTIALS_FILE.write_text(self.launchpad_credentials)
-        LP_CREDENTIALS_FILE.chmod(0o600)
-        logger.debug("Launchpad credentials installed at: %s", LP_CREDENTIALS_FILE)
+        try:
+            LP_CREDENTIALS_FILE.write_text(self.launchpad_credentials)
+            logger.debug("Credentials written to file: %s", LP_CREDENTIALS_FILE)
+        except OSError as e:
+            logger.error("Failed to write credentials file: %s", e)
+            raise
+
+        # Set file permissions
+        try:
+            LP_CREDENTIALS_FILE.chmod(0o600)
+            logger.debug("Launchpad credentials file permissions set to 0600")
+        except OSError as e:
+            logger.error("Failed to set file permissions: %s", e)
+            raise
 
         # Set ownership to www-data for the credentials directory and file
         # The cron job runs as www-data and needs to read the credentials

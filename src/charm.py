@@ -39,8 +39,10 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
 
         # Observe secret events
         self.framework.observe(self.on.secret_changed, self._on_secret_changed)
+        self.framework.observe(self.on.secret_removed, self._on_secret_removed)
 
         self._apache = Apache()
+        self._tracked_secret_id = None
 
     def _get_versions_instance(self) -> Versions:
         """Get a Versions instance with Launchpad credentials if available.
@@ -60,14 +62,24 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
         try:
             # Try to get the secret by label
             secret = self.model.get_secret(label="launchpad-credentials")
+
+            # Track the secret to receive change notifications
+            if self._tracked_secret_id != secret.id:
+                secret.track()
+                self._tracked_secret_id = secret.id
+                logger.debug("Tracking Launchpad credentials secret: %s", secret.id)
+
             content = secret.get_content(refresh=True)
             credentials = content.get("credentials")
             if credentials:
                 logger.debug("Retrieved Launchpad credentials from secret")
                 return credentials
             else:
+                available_keys = list(content.keys())
                 logger.warning(
-                    "Secret 'launchpad-credentials' exists but has no 'credentials' key"
+                    "Secret 'launchpad-credentials' exists but has no 'credentials' key. "
+                    "Available keys: %s",
+                    available_keys,
                 )
                 return None
         except ops.SecretNotFoundError:
@@ -211,10 +223,45 @@ class UbuntuDesktopVersionsOperatorCharm(ops.CharmBase):
         self.unit.status = ops.ActiveStatus()
 
     def _on_secret_changed(self, event: ops.SecretChangedEvent):
-        """Handle secret changed event."""
-        logger.info("Secret changed, credentials may have been updated")
-        # The credentials will be automatically picked up on the next operation
-        # that uses _get_versions_instance()
+        """Handle secret changed event.
+
+        When credentials are updated, reinstall them to the filesystem.
+        """
+        logger.info("Secret changed, reinstalling credentials")
+
+        # Get the updated credentials
+        launchpad_credentials = self._get_launchpad_credentials()
+
+        if not launchpad_credentials:
+            logger.warning("Secret changed but no valid credentials found")
+            self.unit.status = ops.BlockedStatus(
+                "Launchpad credentials secret changed but no valid 'credentials' key found"
+            )
+            return
+
+        # Reinstall the credentials
+        try:
+            versions = Versions(launchpad_credentials=launchpad_credentials)
+            versions.install_launchpad_credentials()
+            logger.info("Credentials successfully reinstalled after secret change")
+            self.unit.status = ops.ActiveStatus()
+        except Exception as e:
+            logger.error("Failed to reinstall credentials: %s", e)
+            self.unit.status = ops.BlockedStatus(
+                "Failed to reinstall credentials after secret change. Check logs."
+            )
+
+    def _on_secret_removed(self, event: ops.SecretRemovedEvent):
+        """Handle secret removed event.
+
+        When credentials are revoked or removed, block the charm.
+        """
+        logger.warning("Launchpad credentials secret has been removed")
+        self._tracked_secret_id = None
+        self.unit.status = ops.BlockedStatus(
+            "Launchpad credentials have been removed. "
+            "Create and grant a new secret to continue."
+        )
 
     def _on_ingress_ready(self, event):
         """Handle ingress ready event."""
