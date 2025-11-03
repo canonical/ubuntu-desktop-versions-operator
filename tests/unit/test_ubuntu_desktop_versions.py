@@ -12,6 +12,7 @@ import pytest
 from ubuntu_desktop_versions import (
     LOG_DIR,
     LOGROTATE_CONFIG_DST,
+    LONG_TIMEOUT,
     OUTPUT_DIR,
     PACKAGES,
     REPO_LOCATION,
@@ -185,3 +186,81 @@ class TestSetupCrontab:
         call_args = mock_run.call_args
         assert call_args[0][0] == ["crontab", "-u", "www-data", "-r"]
         assert call_args[1]["check"] is True
+
+
+class TestGenerateReports:
+    """Tests for Versions.generate_reports()."""
+
+    @patch("ubuntu_desktop_versions.run")
+    def test_generate_reports_success(self, mock_run, versions):
+        """Test successful report generation."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="Reports generated successfully")
+
+        result = versions.generate_reports()
+
+        assert result is True
+        mock_run.assert_called_once()
+
+        # Verify command construction
+        call_args = mock_run.call_args
+        assert call_args[0][0][0] == "bash"
+        assert call_args[0][0][1] == "-c"
+        command = call_args[0][0][2]
+        assert f"cd {REPO_LOCATION}" in command
+        assert "/usr/bin/python3 versions.py" in command
+        assert f"cp *.html *.yaml *.yml {OUTPUT_DIR}/" in command
+
+        # Verify environment variables
+        env = call_args[1]["env"]
+        assert env["FLAVOR"] == "ubuntu"
+        assert env["DISTRO_SERIES"] == "resolute"
+        assert "GIT_TERMINAL_PROMPT" in env  # From __init__
+
+        # Verify other parameters
+        assert call_args[1]["check"] is True
+        assert call_args[1]["timeout"] == LONG_TIMEOUT
+        assert call_args[1]["text"] is True
+
+    @patch("ubuntu_desktop_versions.run")
+    def test_generate_reports_failure(self, mock_run, versions):
+        """Test report generation failure."""
+        mock_run.side_effect = CalledProcessError(1, "bash", output="Script failed")
+
+        result = versions.generate_reports()
+
+        assert result is False
+        mock_run.assert_called_once()
+
+    @patch("ubuntu_desktop_versions.run")
+    def test_generate_reports_preserves_proxy_settings(self, mock_run, monkeypatch):
+        """Test that report generation preserves proxy settings from initialization."""
+        # Set up proxy environment variables
+        monkeypatch.setenv("JUJU_CHARM_HTTP_PROXY", "http://proxy.example.com:8080")
+        monkeypatch.setenv("JUJU_CHARM_HTTPS_PROXY", "https://proxy.example.com:8443")
+
+        # Create a new Versions instance with proxy settings
+        versions_with_proxy = Versions()
+        mock_run.return_value = MagicMock(returncode=0, stdout="Reports generated")
+
+        result = versions_with_proxy.generate_reports()
+
+        assert result is True
+
+        # Verify proxy settings are preserved in the environment
+        call_args = mock_run.call_args
+        env = call_args[1]["env"]
+        assert env["HTTP_PROXY"] == "http://proxy.example.com:8080"
+        assert env["HTTPS_PROXY"] == "https://proxy.example.com:8443"
+        assert env["FLAVOR"] == "ubuntu"
+        assert env["DISTRO_SERIES"] == "resolute"
+
+    @patch("ubuntu_desktop_versions.run")
+    def test_generate_reports_uses_correct_timeout(self, mock_run, versions):
+        """Test that report generation uses LONG_TIMEOUT."""
+        mock_run.return_value = MagicMock(returncode=0, stdout="Reports generated")
+
+        versions.generate_reports()
+
+        call_args = mock_run.call_args
+        assert call_args[1]["timeout"] == LONG_TIMEOUT
+        assert call_args[1]["timeout"] == 3600  # Explicit verification
