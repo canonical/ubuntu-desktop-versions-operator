@@ -76,14 +76,12 @@ class TestInstallLaunchpadCredentials:
         assert versions.env["LP_CREDENTIALS_FILE"] == str(LP_CREDENTIALS_FILE)
 
     def test_install_credentials_without_credentials(self):
-        """Test that install_launchpad_credentials does nothing without credentials."""
+        """Test that install_launchpad_credentials raises error without credentials."""
         versions = Versions()
 
-        # Should not raise an error
-        versions.install_launchpad_credentials()
-
-        # Environment variable should not be set
-        assert "LP_CREDENTIALS_FILE" not in versions.env
+        # Should raise ValueError when no credentials provided
+        with pytest.raises(ValueError, match="No Launchpad credentials provided"):
+            versions.install_launchpad_credentials()
 
 
 class TestInstall:

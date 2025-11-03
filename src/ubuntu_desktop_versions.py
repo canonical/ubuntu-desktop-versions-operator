@@ -101,10 +101,14 @@ class Versions:
 
         The credentials must be provided during initialization.
         They will be written to a file that launchpadlib can use.
+
+        Raises:
+            ValueError: If credentials were not provided during initialization
         """
         if not self.launchpad_credentials:
-            logger.info("No Launchpad credentials provided")
-            return
+            error_msg = "No Launchpad credentials provided - cannot proceed without authentication"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
 
         write_launchpad_credentials(self.launchpad_credentials)
 
