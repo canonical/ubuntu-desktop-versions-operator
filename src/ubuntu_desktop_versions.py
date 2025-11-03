@@ -36,13 +36,52 @@ REPO_URL = "https://git.launchpad.net/ubuntu-desktop-versions"
 OUTPUT_DIR = Path("/var/www/html/versions")
 LOG_DIR = Path("/var/log/ubuntu-desktop-versions")
 LOGROTATE_CONFIG_DST = Path("/etc/logrotate.d/ubuntu-desktop-versions")
+LP_CREDENTIALS_DIR = Path("/var/lib/ubuntu-desktop-versions")
+LP_CREDENTIALS_FILE = LP_CREDENTIALS_DIR / "launchpad-credentials"
+
+
+def write_launchpad_credentials(credentials: str) -> None:
+    """Write Launchpad credentials to the filesystem.
+
+    This is a standalone function that writes credentials to the expected location
+    for launchpadlib to find them. It handles all necessary file operations including
+    directory creation, permissions, and ownership.
+
+    Args:
+        credentials: The Launchpad credentials string to write
+
+    Raises:
+        ValueError: If credentials are empty or whitespace only
+        OSError: If file operations fail (mkdir, write, chmod)
+        LookupError: If www-data user doesn't exist
+        PermissionError: If unable to set ownership
+    """
+    # Validate credentials are not empty after stripping whitespace
+    if not credentials or not credentials.strip():
+        raise ValueError("Launchpad credentials cannot be empty or whitespace only")
+
+    try:
+        # Create directory, write file, and set permissions
+        LP_CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
+        LP_CREDENTIALS_FILE.write_text(credentials, encoding="utf-8")
+        LP_CREDENTIALS_FILE.chmod(0o600)
+
+        # Set ownership to www-data for cron job access
+        shutil.chown(LP_CREDENTIALS_DIR, "www-data")
+        shutil.chown(LP_CREDENTIALS_FILE, "www-data")
+
+        logger.info("Launchpad credentials installed at: %s", LP_CREDENTIALS_FILE)
+    except (OSError, LookupError, PermissionError) as e:
+        logger.error("Failed to install credentials: %s", e)
+        raise
 
 
 class Versions:
     """Represent a Versions instance in the workload."""
 
-    def __init__(self):
+    def __init__(self, launchpad_credentials: str | None = None):
         logger.debug("Versions class init")
+        self.launchpad_credentials = launchpad_credentials
         self.env = os.environ.copy()
         self.env["GIT_TERMINAL_PROMPT"] = "0"
         self.proxies = {}
@@ -57,8 +96,31 @@ class Versions:
             self.env["HTTPS_PROXY"] = juju_https_proxy
             self.proxies["https"] = juju_https_proxy
 
+    def install_launchpad_credentials(self):
+        """Install Launchpad credentials for authenticated access.
+
+        The credentials must be provided during initialization.
+        They will be written to a file that launchpadlib can use.
+
+        Raises:
+            ValueError: If credentials were not provided during initialization
+        """
+        if not self.launchpad_credentials:
+            error_msg = "No Launchpad credentials provided - cannot proceed without authentication"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+
+        write_launchpad_credentials(self.launchpad_credentials)
+
+        # Set the environment variable for launchpadlib to find the credentials
+        self.env["LP_CREDENTIALS_FILE"] = str(LP_CREDENTIALS_FILE)
+        logger.debug("LP_CREDENTIALS_FILE environment variable set")
+
     def install(self):
         """Install the versions build dependencies."""
+        # Install Launchpad credentials if provided
+        self.install_launchpad_credentials()
+
         # Install the deb packages needed for the service
         try:
             apt.update()
@@ -98,29 +160,6 @@ class Versions:
             logger.debug("ubuntu-desktop-versions vcs cloned.")
         except CalledProcessError as e:
             logger.debug("Git clone of the code failed: %s", e.stdout)
-            raise
-
-        # FIXME: Patch versions.py to use anonymous login instead of
-        # authenticated login. Will revert when I have access to the LP
-        # bot. We will be subject to increased rate-limiting until then.
-        versions_file = REPO_LOCATION / "versions.py"
-        try:
-            run(
-                [
-                    "sed",
-                    "-i",
-                    "s/Launchpad.login_with(/Launchpad.login_anonymously(/",
-                    str(versions_file),
-                ],
-                check=True,
-                stdout=PIPE,
-                stderr=STDOUT,
-                text=True,
-                timeout=SHORT_TIMEOUT,
-            )
-            logger.debug("Patched versions.py for anonymous login")
-        except CalledProcessError as e:
-            logger.error("Failed to patch versions.py: %s", e)
             raise
 
         # Create output directory for HTML files

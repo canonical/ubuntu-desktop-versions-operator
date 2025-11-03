@@ -27,6 +27,20 @@ def base_state():
     return State(leader=True)
 
 
+@pytest.fixture
+def state_with_credentials():
+    """State with Launchpad credentials secret."""
+    return State(
+        secrets=[
+            {
+                "id": "secret:123",
+                "label": "launchpad-credentials",
+                "contents": {0: {"credentials": "test-token"}},
+            }
+        ]
+    )
+
+
 class TestInstallEvent:
     """Tests for install event."""
 
@@ -43,11 +57,12 @@ class TestInstallEvent:
         build_vhost_mock,
         apache_configure_mock,
         ctx,
-        base_state,
+        state_with_credentials,
     ):
         """Test successful install event."""
         build_vhost_mock.return_value = "<VirtualHost>test config</VirtualHost>"
-        out = ctx.run(ctx.on.install(), base_state)
+
+        out = ctx.run(ctx.on.install(), state_with_credentials)
         assert out.unit_status == ActiveStatus()
         assert versions_install_mock.called
         assert setup_crontab_mock.called
@@ -55,14 +70,21 @@ class TestInstallEvent:
         assert build_vhost_mock.called
         assert apache_configure_mock.called
 
+    def test_install_blocked_without_credentials(self, ctx, base_state):
+        """Test install event blocks when no credentials are provided."""
+        out = ctx.run(ctx.on.install(), base_state)
+        assert isinstance(out.unit_status, BlockedStatus)
+        assert "Launchpad credentials required" in out.unit_status.message
+
     @patch("charm.Versions.install")
     @pytest.mark.parametrize(
         "exception", [PackageError, PackageNotFoundError, CalledProcessError(1, "foo")]
     )
-    def test_install_failure_during_setup(self, mock, exception, ctx, base_state):
+    def test_install_failure_during_setup(self, mock, exception, ctx, state_with_credentials):
         """Test install event failure during environment setup."""
         mock.side_effect = exception
-        out = ctx.run(ctx.on.install(), base_state)
+
+        out = ctx.run(ctx.on.install(), state_with_credentials)
         assert out.unit_status == BlockedStatus(
             "Failed to set up the environment. Check `juju debug-log` for details."
         )
@@ -71,11 +93,17 @@ class TestInstallEvent:
     @patch("charm.Versions.setup_crontab")
     @patch("charm.Versions.install")
     def test_install_failure_during_apache_install(
-        self, versions_install_mock, setup_crontab_mock, apache_install_mock, ctx, base_state
+        self,
+        versions_install_mock,
+        setup_crontab_mock,
+        apache_install_mock,
+        ctx,
+        state_with_credentials,
     ):
         """Test install event failure during Apache installation."""
         apache_install_mock.side_effect = CalledProcessError(1, "a2enmod")
-        out = ctx.run(ctx.on.install(), base_state)
+
+        out = ctx.run(ctx.on.install(), state_with_credentials)
         assert out.unit_status == BlockedStatus(
             "Failed to install Apache. Check `juju debug-log` for details."
         )
@@ -93,12 +121,13 @@ class TestInstallEvent:
         build_vhost_mock,
         apache_configure_mock,
         ctx,
-        base_state,
+        state_with_credentials,
     ):
         """Test install event failure during Apache configuration."""
         build_vhost_mock.return_value = "<VirtualHost>test config</VirtualHost>"
         apache_configure_mock.side_effect = CalledProcessError(1, "systemctl reload apache2")
-        out = ctx.run(ctx.on.install(), base_state)
+
+        out = ctx.run(ctx.on.install(), state_with_credentials)
         assert out.unit_status == BlockedStatus(
             "Failed to configure Apache. Check `juju debug-log` for details."
         )
@@ -242,3 +271,45 @@ class TestApache:
         assert "X-Content-Type-Options" in vhost_config
         assert "X-XSS-Protection" in vhost_config
         assert "Referrer-Policy" in vhost_config
+
+
+class TestSecretHandling:
+    """Tests for secret changed and removed events."""
+
+    @patch("charm.write_launchpad_credentials")
+    def test_secret_changed_success(self, write_creds_mock, ctx, state_with_credentials):
+        """Test successful secret changed event."""
+        out = ctx.run(ctx.on.secret_changed(id="secret:123"), state_with_credentials)
+        assert out.unit_status == ActiveStatus()
+        assert write_creds_mock.called
+
+    def test_secret_changed_no_credentials(self, ctx):
+        """Test secret changed event with invalid credentials."""
+        state_with_secret = State(
+            secrets=[
+                {
+                    "id": "secret:123",
+                    "label": "launchpad-credentials",
+                    "contents": {0: {"wrong-key": "value"}},
+                }
+            ]
+        )
+
+        out = ctx.run(ctx.on.secret_changed(id="secret:123"), state_with_secret)
+        assert isinstance(out.unit_status, BlockedStatus)
+        assert "no valid 'credentials' key" in out.unit_status.message
+
+    @patch("charm.write_launchpad_credentials")
+    def test_secret_changed_install_failure(self, write_creds_mock, ctx, state_with_credentials):
+        """Test secret changed event with installation failure."""
+        write_creds_mock.side_effect = Exception("Install failed")
+
+        out = ctx.run(ctx.on.secret_changed(id="secret:123"), state_with_credentials)
+        assert isinstance(out.unit_status, BlockedStatus)
+        assert "Failed to reinstall credentials" in out.unit_status.message
+
+    def test_secret_removed(self, ctx, state_with_credentials):
+        """Test secret removed event."""
+        out = ctx.run(ctx.on.secret_removed(id="secret:123"), state_with_credentials)
+        assert isinstance(out.unit_status, BlockedStatus)
+        assert "removed" in out.unit_status.message.lower()

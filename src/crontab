@@ -1,5 +1,7 @@
 # Ubuntu Desktop Versions Report Generation
 # Runs every 6 hours to generate package version comparison reports
+# Note: LP_CREDENTIALS_FILE path must match LP_CREDENTIALS_FILE constant in ubuntu_desktop_versions.py
+# Note: Credentials are read from file on each execution, so updates are picked up automatically
 
 # m h  dom mon dow   command
-0 */6 * * * cd /app/ubuntu-desktop-versions && FLAVOR=ubuntu DISTRO_SERIES=resolute /usr/bin/python3 versions.py && cp *.html *.yaml *.yml /var/www/html/versions/ 2>&1 | tee /var/log/ubuntu-desktop-versions/cron.log
+0 */6 * * * cd /app/ubuntu-desktop-versions && LP_CREDENTIALS_FILE=/var/lib/ubuntu-desktop-versions/launchpad-credentials FLAVOR=ubuntu DISTRO_SERIES=resolute /usr/bin/python3 versions.py && cp *.html *.yaml *.yml /var/www/html/versions/ 2>&1 | tee /var/log/ubuntu-desktop-versions/cron.log
