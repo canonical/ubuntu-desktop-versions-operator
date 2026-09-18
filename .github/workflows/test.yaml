@@ -47,7 +47,7 @@ jobs:
 
   integration-test:
     name: "Run integration tests"
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     needs: tests
     steps:
       - name: Checkout
